@@ -21,7 +21,7 @@ const SECTIONS = [
   {no:'1', title:'접수', fields:[
     ['no','접수번호','text',{ph:'비워 두면 자동 부여 (AS-2026-001)'}],
     ['receivedAt','접수일','date'],
-    ['channel','접수 경로','select'],
+    ['channel','접수 경로','multi'],
     ['round','회차','number',{ph:'같은 현장의 몇 번째 AS인지'}]
   ]},
   {no:'2', title:'고객 · 현장', fields:[
@@ -34,7 +34,7 @@ const SECTIONS = [
   {no:'3', title:'마감보고서 첨부', attach:true, guide:'이 현장의 마감보고서(엑셀)를 첨부해 주세요. 담당자가 이 파일을 보고 진행합니다. PDF·사진도 올릴 수 있습니다.', fields:[]},
   {no:'4', title:'현장 담당자 · 처리 담당', owner:true, guide:'현장 담당자는 마감보고서의 담당 디자이너입니다. 재직·휴직·퇴사 구분은 업무지원포털 직원 명단에서 자동으로 정해집니다.', fields:[]},
   {no:'5', title:'문제 내용', media:true, fields:[
-    ['process','공정','select',{wide:true}],
+    ['process','공정','multi',{wide:true}],
     ['symptom','문제 내용','textarea',{ph:'예: 세면대와 배수 부위가 분리되어 물이 배수관으로 내려가지 못하고 외부로 샘'}],
     ['note','비고','textarea',{ph:'예: 24년 공사 건으로 AS 비용 발생 가능성 사전 안내 완료'}],
     ['costNotice','비용 안내','check',{text:'부품비·출장비 발생 가능성을 고객에게 미리 안내함'}]
@@ -43,12 +43,12 @@ const SECTIONS = [
     ['stage','진행 단계','select',{wide:true}],
     ['contactedAt','첫 고객 연락일','date'],
     ['visitAt','방문 일정','datetime'],
-    ['vendor','처리 업체 / 기사','text',{wide:true,ph:'(업체명) / (기사) / (전화번호)'}],
-    ['cause','원인','select',{wide:true}],
+    ['vendor','처리 업체 / 기사','vendors',{wide:true}],
+    ['cause','원인','multi',{wide:true}],
     ['charge','비용 구분','select',{wide:true}]
   ]},
   {no:'7', title:'비용', costs:true, guide:'합계는 자동 계산됩니다.', fields:[
-    ['costBearer','비용 부담','select',{wide:true}],
+    ['costBearer','비용 부담','multi',{wide:true}],
     ['customerCharge','고객 청구액 (원)','money']
   ]},
   {no:'8', title:'완료 · 고객 피드백', fields:[
@@ -213,6 +213,26 @@ async function sendKakao(text){
   return true;
 }
 
+/* ---------- 여러 개 고르는 항목 · 업체 여러 곳 (클레임 보고서와 같은 방식) ---------- */
+// 예전 기록은 문자열 하나, 새 기록은 배열
+const toArr = v => Array.isArray(v) ? v.filter(Boolean) : (v ? [v] : []);
+const joinV = v => toArr(v).join(', ');
+// 처리 업체: 새 기록은 vendors 배열, 예전 기록은 '업체 / 기사 / 전화' 글자 하나
+function vendorsOf(t){
+  if(Array.isArray(t.vendors) && t.vendors.length) return t.vendors;
+  if(!t.vendor) return [];
+  return String(t.vendor).split(/\s*;\s*/).filter(Boolean).map(x=>{ const [name='',worker='',phone=''] = x.split(/\s*\/\s*/); return {name,worker,phone}; });
+}
+const vendorLine = v => [v.name,v.worker,v.phone].map(x=>String(x||'').trim()).filter(Boolean).join(' / ');
+function vendorRowHTML(v={}){
+  return `<div class="vendor-row">
+    <input type="text" data-v="name" value="${esc(v.name||'')}" placeholder="업체명" aria-label="업체명">
+    <input type="text" data-v="worker" value="${esc(v.worker||'')}" placeholder="기사" aria-label="기사">
+    <input type="text" data-v="phone" value="${esc(v.phone||'')}" placeholder="전화번호" inputmode="tel" aria-label="전화번호">
+    <button type="button" class="btn ghost" data-act="vendor-del" aria-label="이 업체 빼기">×</button>
+  </div>`;
+}
+
 /* ---------- 진행 기록 도우미 ---------- */
 /** 기록 하나를 가리키는 열쇠. 새 기록은 id, 예전 기록은 시각+작성자. */
 const logKey = l => l.id || `${l.at}|${l.by||''}|${l.kind||''}|${l.text||''}`;
@@ -345,7 +365,7 @@ function renderList(){
         <td class="cust"><b>${esc(t.customer||'(고객명 미입력)')}</b><span>${esc(t.address||'')}</span></td>
         <td class="who-cell g-${esc(g)}" data-c="hide"><b>${esc(o.name||'—')}</b><span class="gtag">${esc(groupLabel(g))}</span></td>
         <td data-c="hide" style="white-space:nowrap">${h?esc(h):'<span class="flag hot">지정 필요</span>'}</td>
-        <td data-c="hide">${esc(t.process||'')}</td>
+        <td data-c="hide">${esc(joinV(t.process))}</td>
         <td>${stagePill(t)}</td>
         <td data-c="hide"><div class="flags">${flagsHTML(t)}</div></td>
         <td class="num ${delayOf(t)?'over':''}">${el===''?'':el+'일'}</td>
@@ -393,8 +413,8 @@ function exportCSV(rows){
   const q = v => { const s=String(v??''); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
   const lines = [head.join(',')].concat(rows.map((t,i)=>{
     const o = ownerOf(t), h = handlerLabel(t);
-    return [i+1,t.no,t.receivedAt,t.round,t.channel,t.customer,t.phone,t.address,t.finishedAt,t.builtYear,(t.files||[]).map(f=>f.name).join(' / '),o.name,groupLabel(groupOf(t)),t.resignedAt,h,t.process,t.symptom,t.note,t.costNotice?'안내함':'',t.stage||'접수',t.contactedAt,fmtDT(t.visitAt),t.vendor,t.cause,t.charge,
-      ...COSTS.map(([k])=>t.costs?.[k]?.amt??''),costTotal(t)||'',t.costBearer,t.customerCharge,t.doneAt,t.satisfaction,t.result,t.feedback,warranty(t).label,deposit(t)?.label||'',elapsed(t)].map(q).join(',');
+    return [i+1,t.no,t.receivedAt,t.round,joinV(t.channel),t.customer,t.phone,t.address,t.finishedAt,t.builtYear,(t.files||[]).map(f=>f.name).join(' / '),o.name,groupLabel(groupOf(t)),t.resignedAt,h,joinV(t.process),t.symptom,t.note,t.costNotice?'안내함':'',t.stage||'접수',t.contactedAt,fmtDT(t.visitAt),vendorsOf(t).map(vendorLine).join('; '),joinV(t.cause),t.charge,
+      ...COSTS.map(([k])=>t.costs?.[k]?.amt??''),costTotal(t)||'',joinV(t.costBearer),t.customerCharge,t.doneAt,t.satisfaction,t.result,t.feedback,warranty(t).label,deposit(t)?.label||'',elapsed(t)].map(q).join(',');
   }));
   const blob = new Blob(['﻿'+lines.join('\r\n')], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `AS_진행관리_${todayStr()}.csv`;
@@ -458,7 +478,7 @@ function renderDoc(){
             ${kv('회차',t.round?t.round+'차':'')}
             ${kv('준공일',t.finishedAt||(t.builtYear?t.builtYear+'년 시공':''))}
             <div><dt>보증</dt><dd><span class="flag ${w.cls}">${esc(w.label)}</span></dd></div>
-            ${kv('접수 경로',t.channel)}
+            ${kv('접수 경로',joinV(t.channel))}
           </dl>
         </section>
         <section class="sec"><h2><i>3.</i>마감보고서 · 첨부 파일</h2><p class="guide">파일 이름을 누르면 내려받습니다.</p>
@@ -467,7 +487,7 @@ function renderDoc(){
         </section>
         <section class="sec"><h2><i>4.</i>문제 내용</h2>
           <dl class="kv">
-            ${kv('공정',t.process,true)}
+            ${kv('공정',joinV(t.process),true)}
             ${kv('문제 내용',t.symptom,true)}
             ${kv('비고',t.note,true)}
             ${kv('비용 안내',t.costNotice?'부품비·출장비 발생 가능성 사전 안내함':'',true)}
@@ -485,13 +505,13 @@ function renderDoc(){
         </section>
         <section class="sec"><h2><i>6.</i>처리 · 비용</h2>
           <dl class="kv">
-            ${kv('처리 업체 / 기사',t.vendor,true)}
-            ${kv('원인',t.cause)}
+            ${kv('처리 업체 / 기사',vendorsOf(t).map(vendorLine).join('\n'),true)}
+            ${kv('원인',joinV(t.cause))}
             ${kv('비용 구분',t.charge)}
           </dl>
           <table class="cost" style="margin-top:10px"><thead><tr><th>항목</th><th class="num">금액 (원)</th><th>비고</th></tr></thead><tbody>
             ${COSTS.map(([k,l])=>`<tr><td>${l}</td><td class="num">${won(t.costs?.[k]?.amt)||'—'}</td><td>${esc(t.costs?.[k]?.note||'')}</td></tr>`).join('')}
-            <tr class="total"><td>합계</td><td class="num">${won(costTotal(t))}</td><td style="font-weight:400">${t.costBearer?esc(t.costBearer)+' 부담':''}${t.customerCharge?` · 고객 청구 ${won(t.customerCharge)}원`:''}</td></tr>
+            <tr class="total"><td>합계</td><td class="num">${won(costTotal(t))}</td><td style="font-weight:400">${toArr(t.costBearer).length?esc(joinV(t.costBearer))+' 부담':''}${t.customerCharge?` · 고객 청구 ${won(t.customerCharge)}원`:''}</td></tr>
           </tbody></table>
         </section>
         <section class="sec"><h2><i>7.</i>완료 · 고객 피드백</h2>
@@ -629,6 +649,17 @@ function fieldHTML(t,[key,label,type,o]){
     if(key==='charge') input += `<div class="auto" id="charge-auto"></div>`;
     return `<div class="fld${wide}"><span class="lbl">${esc(label)}</span>${input}</div>`;
   }
+  if(type==='multi'){
+    const arr = toArr(v);
+    input = `<div class="chips">`+OPT[key].map((op,i)=>`<label class="chip"><input type="checkbox" name="${id}" id="${id}_${i}" value="${esc(op)}" ${arr.includes(op)?'checked':''}><span>${esc(op)}</span></label>`).join('')+`</div>`;
+    return `<div class="fld${wide}"><span class="lbl">${esc(label)} <span class="guide" style="font-weight:400">· 여러 개 선택 가능</span></span>${input}</div>`;
+  }
+  if(type==='vendors'){
+    const list = vendorsOf(t);
+    return `<div class="fld${wide}"><span class="lbl">${esc(label)} <span class="guide" style="font-weight:400">· 여러 곳이면 + 업체 추가</span></span>
+      <div class="vendors" id="${id}">${(list.length?list:[{}]).map(vendorRowHTML).join('')}</div>
+      <div><button type="button" class="btn ghost" data-act="vendor-add">+ 업체 추가</button></div></div>`;
+  }
   if(type==='check') return `<div class="fld${wide}"><span class="lbl">${esc(label)}</span><label class="check"><input type="checkbox" id="${id}" ${v?'checked':''}>${esc(o.text)}</label></div>`;
   if(type==='textarea') input = `<textarea id="${id}"${ph}>${esc(v)}</textarea>`;
   else if(type==='date') input = `<input type="date" id="${id}" value="${esc(v)}">`;
@@ -673,6 +704,15 @@ function readForm(frm){
   const data = {};
   SECTIONS.forEach(sec=>sec.fields.forEach(([key,,type])=>{
     if(type==='select') data[key] = frm.querySelector(`[name="f_${key}"]:checked`)?.value || '';
+    else if(type==='multi') data[key] = [...frm.querySelectorAll(`[name="f_${key}"]:checked`)].map(x=>x.value);
+    else if(type==='vendors'){
+      data.vendors = [...frm.querySelectorAll('#f_'+key+' .vendor-row')].map(r=>({
+        name:r.querySelector('[data-v="name"]').value.trim(),
+        worker:r.querySelector('[data-v="worker"]').value.trim(),
+        phone:r.querySelector('[data-v="phone"]').value.trim()
+      })).filter(x=>x.name||x.worker||x.phone);
+      data[key] = data.vendors.map(vendorLine).join('; ');   // 검색·CSV·예전 화면용 글자
+    }
     else if(type==='check') data[key] = frm.querySelector('#f_'+key).checked;
     else if(type==='money') data[key] = parseNum(frm.querySelector('#f_'+key).value);
     else if(type==='number') data[key] = parseNum(frm.querySelector('#f_'+key).value);
@@ -743,6 +783,13 @@ function renderEdit(){
     inp.value = n===''?'':won(n); const p = Math.max(0,inp.value.length-pos); inp.setSelectionRange(p,p); updateAuto();
   }));
   frm.addEventListener('change',updateAuto);
+  frm.addEventListener('click',e=>{
+    const add = e.target.closest('[data-act="vendor-add"]');
+    if(add){ const box = frm.querySelector('#f_vendor'); box.insertAdjacentHTML('beforeend', vendorRowHTML()); box.lastElementChild.querySelector('input').focus(); return; }
+    const del = e.target.closest('[data-act="vendor-del"]');
+    if(del){ const box = frm.querySelector('#f_vendor'), row = del.closest('.vendor-row');
+      if(box.children.length>1) row.remove(); else row.querySelectorAll('input').forEach(i=>i.value=''); }
+  });
   frm.querySelector('#f_address').addEventListener('input',updateAuto);
   frm.querySelector('#f_ownerName').addEventListener('input',updateAuto);
   function updateAuto(){
@@ -773,7 +820,7 @@ function renderEdit(){
     else if(!d.ownerEmail && !d.ownerStatus) box.innerHTML = `<span class="flag hot">상태 선택 필요</span> ${esc(oe)} 님이 휴직인지 퇴사인지 골라 주세요.`;
     else box.innerHTML = `구분: <b class="gtag g-${esc(g)}">${esc(groupLabel(g))}</b> · 처리 담당: ${h?`<b>${esc(h)}</b>`:'<span class="flag hot">지정 필요</span> 현장 담당자 상태를 확인하거나 처리할 사람을 골라 주세요'}${dep?` · <span class="flag ${dep.cls}">${esc(dep.label)}</span>`:''}`;
     const w = warranty(probe), ca = frm.querySelector('#charge-auto');
-    const careless = d.cause==='고객 사용 부주의';
+    const careless = toArr(d.cause).includes('고객 사용 부주의');
     ca.innerHTML = `<span class="flag ${w.cls}">${esc(w.label)}</span> ` + (careless ? '고객 부주의로 생긴 AS는 비용이 발생할 수 있습니다.' : w.k==='in' ? '준공 후 1년 안이라 원칙적으로 무상입니다.' : w.k==='out' ? '보증 기간이 지나 부품비·출장비가 발생할 수 있습니다. 고객에게 미리 안내해 주세요.' : '준공일이나 시공 연도를 넣으면 보증 기간을 계산합니다.');
     const sr = suggestRound(d.address, editing?._id);
     frm.querySelector('#round-hint').textContent = sr>1 ? `같은 주소로 이전 AS ${sr-1}건이 있습니다 → ${sr}차` : (sr===1 ? '이 주소의 첫 AS입니다' : '');
