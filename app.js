@@ -33,7 +33,7 @@ const SECTIONS = [
   ]},
   {no:'3', title:'마감보고서 첨부', attach:true, guide:'이 현장의 마감보고서(엑셀)를 첨부해 주세요. 담당자가 이 파일을 보고 진행합니다. PDF·사진도 올릴 수 있습니다.', fields:[]},
   {no:'4', title:'현장 담당자 · 처리 담당', owner:true, guide:'현장 담당자는 마감보고서의 담당 디자이너입니다. 재직·휴직·퇴사 구분은 업무지원포털 직원 명단에서 자동으로 정해집니다.', fields:[]},
-  {no:'5', title:'문제 내용', fields:[
+  {no:'5', title:'문제 내용', media:true, fields:[
     ['process','공정','select',{wide:true}],
     ['symptom','문제 내용','textarea',{ph:'예: 세면대와 배수 부위가 분리되어 물이 배수관으로 내려가지 못하고 외부로 샘'}],
     ['note','비고','textarea',{ph:'예: 24년 공사 건으로 AS 비용 발생 가능성 사전 안내 완료'}],
@@ -97,22 +97,31 @@ const groupOf = t => ownerOf(t).status || '미확인';
 const groupLabel = g => (GROUPS.find(x=>x[0]===g)||[,'담당자 미확인'])[1];
 /** 휴직·퇴사자 현장은 현장팀이 맡는다 (2026-10-14 대표 지시). 사람이 바뀌면 이름만 고친다. */
 const FIELD_TEAM = ['김응수','박명철'];
-const TEAM = 'team:field';
-const fieldTeam = () => S.members.filter(m=>FIELD_TEAM.includes(m.name) && normStatus(m.status)==='재직').map(m=>m.email);
-/** 처리 담당 (이메일 목록). 따로 지정했으면 그 사람, 아니면 재직자 현장은 담당자 본인, 휴직·퇴사자 현장은 현장팀. */
+const TEAM = 'team:field';   // 예전 기록: 현장팀 두 분 공동 담당
+/** 현장팀 한 사람의 처리 담당 값. 직원 명단에 있으면 이메일, 없으면 'name:이름'. */
+const fieldValue = name => { const m = S.members.find(x=>x.name===name && normStatus(x.status)==='재직'); return m ? m.email : 'name:'+name; };
+const fieldTeam = () => FIELD_TEAM.map(fieldValue).filter(v=>!v.startsWith('name:'));
+/** 처리 담당 (이메일 목록). 지정했으면 그 사람, 아니면 재직자 현장은 담당자 본인.
+    휴직·퇴사자 현장은 접수할 때 현장팀 중 한 명을 지정한다. */
 function handlersOf(t){
-  if(t.handlerEmail===TEAM) return fieldTeam();
-  if(t.handlerEmail) return [t.handlerEmail];
+  const h = t.handlerEmail;
+  if(h===TEAM) return fieldTeam();
+  if(h && h.startsWith('name:')){ const v = fieldValue(h.slice(5)); return v.startsWith('name:') ? [] : [v]; }
+  if(h) return [h];
   const o = ownerOf(t);
-  if(o.status==='재직') return o.email ? [o.email] : [];
-  if(o.status==='휴직' || o.status==='퇴사') return fieldTeam();
-  return [];
+  return o.status==='재직' && o.email ? [o.email] : [];
 }
-const isTeam = t => t.handlerEmail===TEAM || (!t.handlerEmail && ['휴직','퇴사'].includes(ownerOf(t).status));
-/** 처리 담당 표시용 이름. 현장팀은 명단에서 못 찾아도 이름으로 보여 준다. */
+/** 처리 담당 표시용 이름. 명단에서 못 찾은 현장팀은 이름으로 보여 준다. */
 function handlerLabel(t){
-  if(isTeam(t)) return '현장팀 ' + FIELD_TEAM.join('·');
-  const h = handlersOf(t); return h.length ? h.map(nameOf).join('·') : '';
+  const h = t.handlerEmail;
+  if(h===TEAM) return '현장팀 ' + FIELD_TEAM.join('·');
+  if(h && h.startsWith('name:')) return h.slice(5);
+  const list = handlersOf(t); return list.length ? list.map(nameOf).join('·') : '';
+}
+/** 진행 중 건수가 적은 현장팀 사람 (같으면 앞사람). 휴직·퇴사자 현장 접수 때 자동으로 고른다. */
+function lighterField(selfId){
+  const load = name => S.tickets.filter(x=>x._id!==selfId && isOpen(x) && handlerLabel(x)===name).length;
+  return FIELD_TEAM.map(n=>[n, load(n)]).sort((a,b)=>a[1]-b[1])[0];
 }
 const isMine = t => handlersOf(t).includes(S.email);
 const stageIdx = t => STAGES.indexOf(t.stage||'접수');
@@ -215,6 +224,7 @@ async function copy(text, msg){
     ta.remove();
   }
 }
+const isVideo = f => /^video\//.test(f?.type||'') || /\.(mp4|mov|m4v|webm|3gp)$/i.test(f?.name||'');
 const fileExt = n => (String(n||'').split('.').pop()||'').slice(0,4);
 const fileSize = b => !b ? '' : b>=1048576 ? (b/1048576).toFixed(1)+'MB' : Math.max(1,Math.round(b/1024))+'KB';
 
@@ -361,7 +371,7 @@ function renderDoc(){
   const canDel = canW && (S.me.isAdmin || (t.createdBy && t.createdBy===S.email));
   const o = ownerOf(t), g = groupOf(t), h = handlerLabel(t), w = warranty(t), dep = deposit(t);
   const si = t.stage===HOLD ? -1 : stageIdx(t);
-  const photos = t.photos||[], files = t.files||[];
+  const photos = t.photos||[], files = t.files||[], media = t.media||[];
   const log = [...(t.log||[])].reverse();
   app.innerHTML = `
     <div class="back"><button class="btn ghost" data-act="back">← 현황판</button></div>
@@ -395,7 +405,7 @@ function renderDoc(){
         <section class="sec" style="padding-top:0"><h2><i>1.</i>담당</h2>
           <dl class="kv">
             <div><dt>현장 담당자</dt><dd>${o.name?`${esc(o.name)} <span class="gtag g-${esc(g)}">${esc(o.status||'상태 미확인')}</span>`:'<span class="blank">—</span>'}${o.dept?`<br><span class="guide">${esc(o.dept)}</span>`:''}</dd></div>
-            <div><dt>처리 담당</dt><dd>${h?esc(h)+(t.handlerEmail&&t.handlerEmail!==TEAM&&t.handlerEmail!==o.email?' <span class="guide">(대신 처리)</span>':''):'<span class="flag hot">지정 필요</span>'}</dd></div>
+            <div><dt>처리 담당</dt><dd>${h?esc(h)+(t.handlerEmail&&t.handlerEmail!==o.email&&['휴직','퇴사'].includes(g)?' <span class="guide">(현장팀)</span>':''):'<span class="flag hot">지정 필요</span>'}</dd></div>
             ${g==='퇴사'?`${kv('퇴사일',t.resignedAt)}<div><dt>예치금</dt><dd><span class="flag ${dep.cls}">${esc(dep.label)}</span></dd></div>`:''}
           </dl>
         </section>
@@ -422,7 +432,17 @@ function renderDoc(){
             ${kv('비용 안내',t.costNotice?'부품비·출장비 발생 가능성 사전 안내함':'',true)}
           </dl>
         </section>
-        <section class="sec"><h2><i>5.</i>처리 · 비용</h2>
+        <section class="sec"><h2><i>5.</i>사진 · 영상</h2><p class="guide">고객이 보낸 참고 사진·영상과 처리 전후 사진을 올려 두세요. 사진을 누르면 원본이 새 탭에서 열립니다. 영상은 한 개에 50MB까지입니다.</p>
+          <div class="photos">
+            ${photos.map(p=>`<div class="photo"><a href="${esc(S.photoUrls[p]||'#')}" target="_blank" rel="noopener"><img data-photo="${esc(p)}" ${S.photoUrls[p]?`src="${esc(S.photoUrls[p])}"`:''} alt="AS 현장 사진" loading="lazy"></a>${canW?`<button data-rmphoto="${esc(p)}">빼기</button>`:''}</div>`).join('')}
+            ${media.map(m=>isVideo(m)
+              ? `<div class="photo vid"><video data-media="${esc(m.path)}" ${S.photoUrls[m.path]?`src="${esc(S.photoUrls[m.path])}"`:''} controls playsinline preload="metadata"></video><a class="tag" href="${esc(S.photoUrls[m.path]||'#')}" target="_blank" rel="noopener">영상 원본</a>${canW?`<button data-rmmedia="${esc(m.path)}">빼기</button>`:''}</div>`
+              : `<div class="photo"><a href="${esc(S.photoUrls[m.path]||'#')}" target="_blank" rel="noopener"><img data-media="${esc(m.path)}" ${S.photoUrls[m.path]?`src="${esc(S.photoUrls[m.path])}"`:''} alt="${esc(m.name||'사진')}" loading="lazy"></a>${canW?`<button data-rmmedia="${esc(m.path)}">빼기</button>`:''}</div>`).join('')}
+            ${canW?`<label class="dropzone" for="photo-in">${S.busy==='media'?'올리는 중…':'+ 사진·영상 추가<br>(여러 개 선택 가능)'}</label><input id="photo-in" type="file" accept="image/*,video/*" multiple hidden>`:''}
+            ${!photos.length && !media.length && !canW?'<p class="guide">첨부된 사진·영상이 없습니다.</p>':''}
+          </div>
+        </section>
+        <section class="sec"><h2><i>6.</i>처리 · 비용</h2>
           <dl class="kv">
             ${kv('처리 업체 / 기사',t.vendor,true)}
             ${kv('원인',t.cause)}
@@ -433,20 +453,13 @@ function renderDoc(){
             <tr class="total"><td>합계</td><td class="num">${won(costTotal(t))}</td><td style="font-weight:400">${t.costBearer?esc(t.costBearer)+' 부담':''}${t.customerCharge?` · 고객 청구 ${won(t.customerCharge)}원`:''}</td></tr>
           </tbody></table>
         </section>
-        <section class="sec"><h2><i>6.</i>완료 · 고객 피드백</h2>
+        <section class="sec"><h2><i>7.</i>완료 · 고객 피드백</h2>
           <dl class="kv">
             ${kv('처리 완료일',t.doneAt)}
             ${kv('고객 만족도',t.satisfaction)}
             ${kv('처리 결과',t.result,true)}
             ${kv('고객 피드백',t.feedback,true)}
           </dl>
-        </section>
-        <section class="sec"><h2><i>7.</i>사진</h2><p class="guide">접수 사진·처리 전후 사진을 올려 두세요. 누르면 원본이 새 탭에서 열립니다.</p>
-          <div class="photos">
-            ${photos.map(p=>`<div class="photo"><a href="${esc(S.photoUrls[p]||'#')}" target="_blank" rel="noopener"><img data-photo="${esc(p)}" ${S.photoUrls[p]?`src="${esc(S.photoUrls[p])}"`:''} alt="AS 현장 사진" loading="lazy"></a>${canW?`<button data-rmphoto="${esc(p)}">빼기</button>`:''}</div>`).join('')}
-            ${canW?`<label class="dropzone" for="photo-in">${S.busy===true?'올리는 중…':'+ 사진 추가<br>(여러 장 선택 가능)'}</label><input id="photo-in" type="file" accept="image/*" multiple hidden>`:''}
-            ${!photos.length && !canW?'<p class="guide">첨부된 사진이 없습니다.</p>':''}
-          </div>
         </section>
       </article>
       <aside class="side">
@@ -460,7 +473,7 @@ function renderDoc(){
       <span style="flex:1"></span>
       ${canDel?(S.confirmDel?'<span class="confirm">이 AS 기록을 삭제할까요? <button class="btn danger" data-act="del-yes">삭제</button><button class="btn" data-act="del-no">취소</button></span>':'<button class="btn ghost" data-act="del">삭제</button>'):''}
     </div>`;
-  loadPhotoUrls(photos);
+  loadPhotoUrls(photos, media.map(m=>m.path));
   app.querySelector('[data-act="back"]').onclick=()=>go('list');
   app.querySelector('[data-act="edit"]')?.addEventListener('click',()=>go('edit',t._id));
   app.querySelectorAll('[data-act="notify"]').forEach(b=>b.addEventListener('click',async()=>{
@@ -508,18 +521,18 @@ function renderDoc(){
     await patch(t._id,{photos:(t.photos||[]).filter(x=>x!==p)},'사진을 뺐습니다.');
     api.removePhotos([p]).catch(()=>{});
   }));
+  app.querySelectorAll('[data-rmmedia]').forEach(b=>b.addEventListener('click',async e=>{
+    e.preventDefault();
+    const p = b.dataset.rmmedia;
+    await patch(t._id,{media:media.filter(x=>x.path!==p)},'뺐습니다.');
+    api.removeFiles([p]).catch(()=>{});
+  }));
   app.querySelector('#photo-in')?.addEventListener('change',async e=>{
-    const files=[...e.target.files]; if(!files.length) return;
-    S.busy=true; renderDoc();
-    const added=[];
-    for(const f of files){
-      try{ added.push(await api.uploadPhoto(t._id, f)); }
-      catch(err){ toast(err?.tooLarge?'20MB보다 큰 사진은 올릴 수 없습니다.':'사진 한 장을 올리지 못했습니다.'); }
-    }
-    S.busy=false;
-    const cur = S.tickets.find(x=>x._id===t._id);
-    if(added.length) await patch(t._id,{photos:[...(cur?.photos||[]),...added]},`사진 ${added.length}장을 추가했습니다.`);
-    else renderDoc();
+    const list=[...e.target.files]; if(!list.length) return;
+    S.busy='media'; renderDoc();
+    const n = await uploadFiles(t._id, list, 'media').catch(()=>0);
+    S.busy=false; renderDoc();
+    if(n) toast(`사진·영상 ${n}개를 올렸습니다.`);
   });
 }
 /** 단계를 바꾸면서 연락일·완료일을 비어 있으면 오늘로 채우고, 진행 기록에 남긴다. */
@@ -584,7 +597,7 @@ function ownerSecHTML(t){
       <datalist id="owner-list">${activeMembers().map(m=>`<option value="${esc(m.name)}">${esc(m.dept||'')}</option>`).join('')}</datalist>
       <span class="hint">재직자는 목록에서 고르고, 휴직·퇴사자는 이름을 직접 적어 주세요.</span></div>
     <div class="fld"><label for="f_handlerEmail">처리 담당</label>
-      <select id="f_handlerEmail"><option value="">자동 (재직자 현장은 본인, 휴직·퇴사자 현장은 현장팀)</option><option value="${TEAM}" ${t.handlerEmail===TEAM?'selected':''}>현장팀 ${esc(FIELD_TEAM.join('·'))}</option><optgroup label="다른 사람 지정">${memberOptions(t.handlerEmail||'',true)}</optgroup></select></div>
+      <select id="f_handlerEmail"><option value="">자동 (재직자 현장은 현장 담당자 본인)</option><optgroup label="현장팀">${FIELD_TEAM.map(n=>{ const v = fieldValue(n); const cur = t.handlerEmail===v || t.handlerEmail==='name:'+n; return `<option value="${esc(v)}" ${cur?'selected':''}>${esc(n)}</option>`; }).join('')}${t.handlerEmail===TEAM?`<option value="${TEAM}" selected>현장팀 공동 (예전 기록)</option>`:''}</optgroup><optgroup label="다른 사람 지정">${memberOptions(t.handlerEmail||'',true)}</optgroup></select></div>
     <div class="fld" data-show="none"><span class="lbl">담당자 상태</span><div class="chips">${['휴직','퇴사'].map((s,i)=>`<label class="chip"><input type="radio" name="f_ownerStatus" id="f_ownerStatus_${i}" value="${s}" ${curStatus===s?'checked':''}><span>${s}</span></label>`).join('')}</div><span class="hint">재직자 목록에 없는 이름입니다. 휴직인지 퇴사인지 골라 주세요.</span></div>
     <div class="fld" data-show="out"><label for="f_resignedAt">퇴사일</label><input type="date" id="f_resignedAt" value="${esc(t.resignedAt||'')}"><span class="hint">퇴사 후 1년 안의 AS는 예치금 차감 대상입니다.</span></div>
     <div class="fld wide"><div class="auto" id="owner-auto"></div></div>
@@ -610,22 +623,28 @@ function readForm(frm){
   data.costTotal = COSTS.reduce((a,[ck])=>a+(Number(data.costs[ck].amt)||0),0);
   return data;
 }
+function mediaPickHTML(t){
+  const n = (t.media||[]).length;
+  return `<div class="fld" style="margin-top:14px"><span class="lbl">고객 참고 사진 · 영상</span>
+    <div class="file-pick" style="margin-top:0"><label class="btn" for="f_media">+ 사진·영상 선택</label><input id="f_media" type="file" accept="image/*,video/*" multiple hidden><span class="pending" id="pending-m">${n?`이미 올린 사진·영상 ${n}개`:''}</span></div>
+    <span class="hint">고객이 보내 준 사진·영상을 올려 주세요. 영상은 한 개에 50MB까지(휴대폰 영상 30초 안팎)입니다.</span></div>`;
+}
 function attachHTML(t){
   const files = t.files||[];
   return `${files.length?`<ul class="files" style="margin-top:12px">${files.map(f=>`<li><span class="ext">${esc(fileExt(f.name))}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span><span class="size">${esc(fileSize(f.size))}</span></li>`).join('')}</ul>`:''}
     <div class="file-pick"><label class="btn" for="f_files">+ 파일 선택</label><input id="f_files" type="file" multiple hidden><span class="pending" id="pending"></span></div>`;
 }
-/** 고른 파일을 올리고 AS 기록의 files 목록 뒤에 붙인다. 한 장이 실패해도 나머지는 올린다. */
-async function uploadFiles(id, list){
+/** 고른 파일을 올리고 AS 기록의 목록(files: 마감보고서 등, media: 사진·영상) 뒤에 붙인다. 하나가 실패해도 나머지는 올린다. */
+async function uploadFiles(id, list, key='files'){
   if(!list.length) return 0;
   const added = [];
   for(const f of list){
     try{ added.push(await api.uploadFile(id, f)); }
-    catch(err){ toast(err?.tooLarge ? `${f.name}: 50MB보다 큰 파일은 올릴 수 없습니다.` : `${f.name}을(를) 올리지 못했습니다.`); }
+    catch(err){ toast(err?.tooLarge ? `${f.name}: 50MB보다 큰 파일은 올릴 수 없습니다.${isVideo(f)?' 영상은 짧게(30초 안팎) 잘라 올려 주세요.':''}` : `${f.name}을(를) 올리지 못했습니다.`); }
   }
   if(added.length){
     const cur = S.tickets.find(x=>x._id===id);
-    await api.update(id, {files:[...(cur?.files||[]), ...added]});
+    await api.update(id, {[key]:[...(cur?.[key]||[]), ...added]});
   }
   return added.length;
 }
@@ -643,7 +662,8 @@ function renderEdit(){
         ${sec.costs?`<table class="cost-in"><thead><tr><th style="width:34%">항목</th><th style="width:28%">금액 (원)</th><th>비고</th></tr></thead><tbody>`+
           COSTS.map(([ck,cl])=>`<tr><td>${cl}</td><td><input class="money" inputmode="numeric" id="c_${ck}_amt" data-money value="${esc(won(t.costs?.[ck]?.amt))}" aria-label="${cl} 금액"></td><td><input id="c_${ck}_note" value="${esc(t.costs?.[ck]?.note||'')}" aria-label="${cl} 비고"></td></tr>`).join('')+
           `<tr class="total"><td>합계</td><td class="num" id="cost-total">0</td><td></td></tr></tbody></table>`:''}
-        ${sec.fields.length?`<div class="grid">${sec.fields.map(f=>fieldHTML(t,f)).join('')}</div>`:''}</section>`).join('')}
+        ${sec.fields.length?`<div class="grid">${sec.fields.map(f=>fieldHTML(t,f)).join('')}</div>`:''}
+        ${sec.media?mediaPickHTML(t):''}</section>`).join('')}
       <div class="save-bar">
         <button type="button" class="btn" data-act="cancel">취소</button>
         <button type="submit" class="btn primary" id="btn-save">${editing?'변경 내용 저장':'AS 접수 저장'}</button>
@@ -663,6 +683,8 @@ function renderEdit(){
     frm.querySelector('#cost-total').textContent = won(d.costTotal);
     const pend = [...frm.querySelector('#f_files').files];
     frm.querySelector('#pending').textContent = pend.length ? `저장할 때 함께 올립니다: ${pend.map(f=>f.name).join(', ')}` : '';
+    const pm = [...frm.querySelector('#f_media').files], big = pm.filter(f=>f.size>50*1024*1024);
+    if(pm.length) frm.querySelector('#pending-m').textContent = `저장할 때 함께 올립니다: 사진·영상 ${pm.length}개` + (big.length?` (50MB 넘는 ${big.length}개는 올라가지 않습니다)`:'');
     const oe = d.ownerName;
     frm.querySelectorAll('[data-show="none"]').forEach(el=>el.hidden = !oe || !!d.ownerEmail);
     // 포털 명단에 휴직·퇴사로 있는 이름이면 상태를 미리 골라 둔다
@@ -674,6 +696,10 @@ function renderEdit(){
     const g = groupOf(probe);
     frm.querySelectorAll('[data-show="out"]').forEach(el=>el.hidden = g!=='퇴사');
     if(g==='퇴사' && !frm.querySelector('#f_resignedAt').value){ const r = resignedFromOthers(probe); if(r){ frm.querySelector('#f_resignedAt').value = r; probe.resignedAt = r; } }
+    // 휴직·퇴사자 현장인데 처리 담당이 비어 있으면 현장팀 중 진행 중 건수가 적은 사람을 고른다
+    const hs = frm.querySelector('#f_handlerEmail');
+    if(['휴직','퇴사'].includes(g) && !hs.value){ const [n] = lighterField(editing?._id); hs.value = fieldValue(n); probe.handlerEmail = hs.value; hs.dataset.auto = '1'; }
+    else if(g==='재직' && hs.dataset.auto==='1'){ hs.value = ''; probe.handlerEmail = ''; delete hs.dataset.auto; }
     const h = handlerLabel(probe), dep = deposit(probe);
     const box = frm.querySelector('#owner-auto');
     if(!oe) box.innerHTML = '현장 담당자를 적으면 재직·휴직·퇴사 구분과 처리 담당이 자동으로 정해집니다.';
@@ -701,14 +727,17 @@ function renderEdit(){
         const logs = (editing.stage||'접수')!==data.stage ? [{at:now, by:S.email, kind:'stage', text:data.stage}] : [];
         await api.appendLog(editing._id, logs, data);
         await uploadFiles(editing._id, [...frm.querySelector('#f_files').files]);
+        await uploadFiles(editing._id, [...frm.querySelector('#f_media').files], 'media');
         toast('저장했습니다.'); go('doc',editing._id);
       } else {
-        data.photos=[]; data.files=[]; data.createdBy=S.email||null;
+        data.photos=[]; data.files=[]; data.media=[]; data.createdBy=S.email||null;
         data.log=[{at:now, by:S.email, kind:'stage', text:'접수'}];
         if(data.stage!=='접수') data.log.push({at:now, by:S.email, kind:'stage', text:data.stage});
-        const pend = [...frm.querySelector('#f_files').files];
+        const pend = [...frm.querySelector('#f_files').files], pendM = [...frm.querySelector('#f_media').files];
+        if(pend.length || pendM.length) btn.textContent = '파일 올리는 중…';
         const newId = await api.insert(data);
         await uploadFiles(newId, pend);
+        await uploadFiles(newId, pendM, 'media');
         toast(`${data.no} AS를 접수했습니다.`); go('doc',newId);
       }
     }catch(err){
@@ -783,8 +812,8 @@ function renderGuide(){
       <p class="guide">현장 담당자의 상태는 업무지원포털 '직원' 시트에서 10분마다 가져옵니다.</p>
       <div class="rules">
         <div class="rule"><h3>재직자 현장</h3><ul><li>현장 담당자 본인이 처리합니다.</li><li>처리 담당을 '자동'으로 두면 본인으로 잡힙니다.</li></ul></div>
-        <div class="rule"><h3>휴직자 현장</h3><ul><li>현장팀 ${esc(FIELD_TEAM.join('·'))} 프로가 진행합니다. (자동 배정)</li><li>다른 사람이 맡을 때만 처리 담당을 바꿉니다.</li></ul></div>
-        <div class="rule"><h3>퇴사자 현장</h3><ul><li>현장팀 ${esc(FIELD_TEAM.join('·'))} 프로가 진행합니다. (자동 배정)</li><li>퇴사 후 1년 안에 생긴 AS 비용은 그 사람의 예치금에서 뺍니다.</li><li>1년이 지나면 남은 예치금을 돌려줍니다.</li></ul></div>
+        <div class="rule"><h3>휴직자 현장</h3><ul><li>현장팀 ${esc(FIELD_TEAM.join('·'))} 프로 중 한 명이 맡습니다.</li><li>접수할 때 진행 중인 건이 적은 쪽이 자동으로 골라지고, 바꿀 수 있습니다.</li></ul></div>
+        <div class="rule"><h3>퇴사자 현장</h3><ul><li>현장팀 ${esc(FIELD_TEAM.join('·'))} 프로 중 한 명이 맡습니다. (휴직자 현장과 같은 방식)</li><li>퇴사 후 1년 안에 생긴 AS 비용은 그 사람의 예치금에서 뺍니다.</li><li>1년이 지나면 남은 예치금을 돌려줍니다.</li></ul></div>
       </div>
     </section>
     <section class="form-sec">
@@ -918,7 +947,7 @@ let api = {
     const path = `as/${id}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
     const {error} = await sb.storage.from(FILES).upload(path, file, {contentType:file.type||'application/octet-stream'});
     if(error) throw error;
-    return {path, name:file.name, size:file.size, at:new Date().toISOString(), by:S.email};
+    return {path, name:file.name, size:file.size, type:file.type||'', at:new Date().toISOString(), by:S.email};
   },
   async removeFiles(paths){
     const {error} = await sb.storage.from(FILES).remove(paths);
@@ -929,18 +958,19 @@ let api = {
     if(error) throw error;
     return data.signedUrl;
   },
-  async signUrls(paths){
-    const {data} = await sb.storage.from(BUCKET).createSignedUrls(paths, 60*60*6);
+  async signUrls(paths, bucket=BUCKET){
+    const {data} = await sb.storage.from(bucket).createSignedUrls(paths, 60*60*6);
     return (data||[]).filter(r=>r.signedUrl && r.path).map(r=>[r.path, r.signedUrl]);
   }
 };
 
-async function loadPhotoUrls(paths){
-  const need = paths.filter(p=>!S.photoUrls[p]);
+async function loadPhotoUrls(paths, media=[]){
+  const need = paths.filter(p=>!S.photoUrls[p]), needM = media.filter(p=>!S.photoUrls[p]);
   if(need.length) (await api.signUrls(need).catch(()=>[])).forEach(([p,u])=>S.photoUrls[p]=u);
-  app.querySelectorAll('img[data-photo]').forEach(img=>{
-    const u = S.photoUrls[img.dataset.photo];
-    if(u && img.getAttribute('src')!==u){ img.src = u; img.closest('a').href = u; }
+  if(needM.length) (await api.signUrls(needM, FILES).catch(()=>[])).forEach(([p,u])=>S.photoUrls[p]=u);
+  app.querySelectorAll('[data-photo],[data-media]').forEach(el=>{
+    const u = S.photoUrls[el.dataset.photo||el.dataset.media];
+    if(u && el.getAttribute('src')!==u){ el.src = u; const a = el.closest('.photo')?.querySelector('a'); if(a) a.href = u; }
   });
 }
 
@@ -996,12 +1026,12 @@ if(DEMO){
   const iso = n => { const x = new Date(); x.setDate(x.getDate()-n); return x.toISOString(); };
   let seq = 0; const mk = o => Object.assign({_id:'demo'+(++seq), photos:[], log:[{at:iso(o._ago||0), by:'me@x', kind:'stage', text:'접수'}], createdBy:'me@x'}, o);
   S.tickets = [
-    mk({no:'AS-2026-001', receivedAt:d(0), _ago:0, round:1, channel:'카카오톡', customer:'이가람', phone:'010-0000-1002', address:'서울특별시 은평구 은평로 220, 녹번 이편한세상캐슬 127동 102호', builtYear:2024, ownerEmail:'seo@x', process:'설비', symptom:'세면대와 배수 부위가 분리되어, 물이 배수관으로 정상적으로 내려가지 못하고 외부로 새는 현상', note:'24년 공사 건으로 AS 비용 발생 가능성에 대해 고객님께 사전 안내 완료(부품비/출장비)', costNotice:true, stage:'접수', cause:'확인 중', charge:'확인 중'}),
+    mk({no:'AS-2026-001', receivedAt:d(0), _ago:0, round:1, channel:'카카오톡', customer:'이가람', phone:'010-0000-1002', address:'서울특별시 은평구 은평로 220, 녹번 이편한세상캐슬 127동 102호', builtYear:2024, ownerEmail:'seo@x', handlerEmail:'ks@x', process:'설비', symptom:'세면대와 배수 부위가 분리되어, 물이 배수관으로 정상적으로 내려가지 못하고 외부로 새는 현상', note:'24년 공사 건으로 AS 비용 발생 가능성에 대해 고객님께 사전 안내 완료(부품비/출장비)', costNotice:true, stage:'접수', cause:'확인 중', charge:'확인 중'}),
     mk({no:'AS-2026-002', receivedAt:d(3), _ago:3, round:1, customer:'정하늘', phone:'010-0000-2231', address:'서울특별시 마포구 월드컵북로 100, 101동 803호', finishedAt:d(200), ownerEmail:'kwon@x', process:'도배', symptom:'거실 벽지 이음매 들뜸', stage:'접수', cause:'확인 중', charge:'확인 중'}),
     mk({no:'AS-2026-003', receivedAt:d(6), _ago:6, round:2, customer:'오민재', phone:'010-0000-7781', address:'경기도 고양시 덕양구 화정로 55, 302동 1501호', finishedAt:d(330), ownerEmail:'park@x', resignedAt:d(90), handlerEmail:'lee@x', process:'타일', symptom:'욕실 바닥 타일 줄눈 갈라짐', stage:'일정 확정', contactedAt:d(5), visitAt:d(-2)+'T14:00', vendor:'한빛타일 / 김기사', cause:'시공 하자', charge:'무상', costs:{parts:{amt:30000},trip:{amt:50000},labor:{amt:120000}}, costTotal:200000, costBearer:'담당자 예치금',
       log:[{at:iso(6),by:'me@x',kind:'stage',text:'접수'},{at:iso(5),by:'lee@x',kind:'stage',text:'고객 연락'},{at:iso(5),by:'lee@x',kind:'note',text:'고객 통화. 작년 같은 욕실 줄눈 보수 이력 있음. 사진 받아 타일 업체 전달'},{at:iso(4),by:'lee@x',kind:'stage',text:'일정 확정'}]}),
     mk({no:'AS-2026-004', receivedAt:d(12), _ago:12, round:1, customer:'한서윤', phone:'010-0000-4410', address:'서울특별시 서대문구 통일로 87, 1203호', finishedAt:d(500), ownerEmail:'kim@x', process:'주방', symptom:'싱크대 하부장 문 처짐', stage:'종결', contactedAt:d(12), doneAt:d(8), cause:'노후·자연 마모', charge:'유상', costs:{trip:{amt:30000},parts:{amt:15000}}, costTotal:45000, costBearer:'고객', customerCharge:45000, satisfaction:'만족', result:'경첩 교체', feedback:'빠르게 와 줘서 고맙다고 하심'}),
-    mk({no:'AS-2026-005', receivedAt:d(2), _ago:2, round:1, customer:'윤채원', phone:'010-0000-9001', address:'서울특별시 은평구 진관2로 12, 805호', finishedAt:d(150), ownerEmail:'park@x', resignedAt:d(90), process:'전기·조명', symptom:'거실 매입등 2개 점등 불량', stage:'접수', cause:'확인 중', charge:'확인 중'}),
+    mk({no:'AS-2026-005', receivedAt:d(2), _ago:2, round:1, customer:'윤채원', phone:'010-0000-9001', address:'서울특별시 은평구 진관2로 12, 805호', finishedAt:d(150), ownerEmail:'park@x', resignedAt:d(90), handlerEmail:'mc@x', process:'전기·조명', symptom:'거실 매입등 2개 점등 불량', stage:'접수', cause:'확인 중', charge:'확인 중'}),
     mk({no:'AS-2026-006', receivedAt:d(9), _ago:9, round:1, customer:'강도현', phone:'010-0000-3321', address:'서울특별시 강서구 공항대로 300, 1102호', builtYear:2025, ownerEmail:'seo@x', handlerEmail:'kwon@x', process:'필름', symptom:'현관 중문 필름 들뜸', stage:'처리 완료', contactedAt:d(9), doneAt:d(1), cause:'시공 하자', charge:'무상', costs:{labor:{amt:80000}}, costTotal:80000, costBearer:'협력업체'})
   ];
   S.tickets.forEach(t=>delete t._ago);
@@ -1013,8 +1043,8 @@ if(DEMO){
     async update(id,p){ return api.appendLog(id,[],p); },
     async remove(id){ S.tickets = S.tickets.filter(x=>x._id!==id); },
     async uploadPhoto(id,f){ const u = URL.createObjectURL(f); S.photoUrls[u]=u; return u; },
-    async removePhotos(){}, async signUrls(){ return []; },
-    async uploadFile(id,f){ return {path:URL.createObjectURL(f), name:f.name, size:f.size, at:new Date().toISOString(), by:S.email}; },
+    async removePhotos(){}, async signUrls(paths){ return paths.map(p=>[p,p]); },
+    async uploadFile(id,f){ return {path:URL.createObjectURL(f), name:f.name, size:f.size, type:f.type, at:new Date().toISOString(), by:S.email}; },
     async removeFiles(){}, async fileUrl(p){ return p; }
   };
   S.session = {user:{id:'demo', email:'me@x'}}; S.authReady = true; S.email = 'me@x'; S.staff = true; S.loaded = true;
