@@ -65,7 +65,7 @@ const S = {
   f:{group:'전체', stage:'진행 중', q:'', mine:false, alert:'', owner:''},
   me:{isAdmin:false, name:''}, members:[], staff:false,
   session:null, authReady:false, email:null, uid:null, offline:false,
-  photoUrls:{}, confirmDel:false, busy:false, usage:null
+  photoUrls:{}, confirmDel:false, busy:false, usage:null, editLog:null
 };
 const app = document.getElementById('app');
 
@@ -213,6 +213,14 @@ async function sendKakao(text){
   return true;
 }
 
+/* ---------- 진행 기록 도우미 ---------- */
+/** 기록 하나를 가리키는 열쇠. 새 기록은 id, 예전 기록은 시각+작성자. */
+const logKey = l => l.id || `${l.at}|${l.by||''}|${l.kind||''}|${l.text||''}`;
+const newLogId = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+/** ISO 시각 ↔ 날짜·시간 입력칸 값 (이 컴퓨터 시간대) */
+const localDT = iso => { const d = iso ? new Date(iso) : new Date(); return isNaN(d) ? '' : `${dstr(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const fromLocalDT = v => { const d = v ? new Date(v) : new Date(); return isNaN(d) ? new Date().toISOString() : d.toISOString(); };
+
 /* ---------- 링크 복사 ---------- */
 const link = t => location.origin + location.pathname + '#' + t._id;
 async function copy(text, msg){
@@ -230,7 +238,7 @@ const fileSize = b => !b ? '' : b>=1048576 ? (b/1048576).toFixed(1)+'MB' : Math.
 
 /* ---------- 화면 전환 ---------- */
 function go(view,id){
-  S.view=view; S.id=id||null; S.confirmDel=false;
+  S.view=view; S.id=id||null; S.confirmDel=false; S.editLog=null;
   const h = view==='doc' && id ? '#'+id : '';
   if(location.hash!==h) history.replaceState(null,'',location.pathname+location.search+h);
   render(); window.scrollTo(0,0);
@@ -404,7 +412,8 @@ function renderDoc(){
   const o = ownerOf(t), g = groupOf(t), h = handlerLabel(t), w = warranty(t), dep = deposit(t);
   const si = t.stage===HOLD ? -1 : stageIdx(t);
   const photos = t.photos||[], files = t.files||[], media = t.media||[];
-  const log = [...(t.log||[])].reverse();
+  // 날짜·시간 순(최근이 위). 예전에 자동으로 남던 '카톡 접수 알림 보냄'은 숨긴다
+  const log = (t.log||[]).filter(l=>!(l.kind==='note' && /^카톡 접수 알림 보냄/.test(l.text||''))).slice().sort((a,b)=>String(b.at).localeCompare(String(a.at)));
   app.innerHTML = `
     <div class="back"><button class="btn ghost" data-act="back">← 현황판</button></div>
     ${canW && isOpen(t) && !t.notifiedAt ? `<div class="notify">
@@ -497,8 +506,16 @@ function renderDoc(){
       <aside class="side">
         <h2>진행 기록</h2>
         <p class="guide" style="margin:0">고객 통화, 방문, 협의 내용을 그때그때 남겨 주세요. 예전에 파일에 정리하던 내용입니다.</p>
-        ${canW?`<form class="note-in" id="note-f"><textarea id="note-t" placeholder="예: 10/15 고객 통화, 10/17(금) 오후 2시 방문 약속"></textarea><div style="display:flex;justify-content:flex-end"><button class="btn primary" type="submit">기록 남기기</button></div></form>`:''}
-        <ul class="tl">${log.length?log.map(l=>`<li class="${l.kind==='stage'?'stage':''}"><div class="meta">${esc(shortDT(l.at))} · ${esc(l.by?nameOf(l.by):'')}</div><div class="txt">${l.kind==='stage'?'단계 → '+esc(l.text):esc(l.text)}</div></li>`).join(''):'<li class="empty-tl">아직 기록이 없습니다.</li>'}</ul>
+        ${canW?`<form class="note-in" id="note-f"><textarea id="note-t" placeholder="예: 고객 통화, 10/17(금) 오후 2시 방문 약속"></textarea><div class="note-row"><input type="datetime-local" id="note-at" value="${esc(localDT())}" aria-label="기록 날짜·시간"><button class="btn primary" type="submit">기록 남기기</button></div></form>`:''}
+        <ul class="tl">${log.length?log.map(l=>{
+          const k = logKey(l), mine = canW && (S.me.isAdmin || l.by===S.email);
+          if(S.editLog===k) return `<li class="${l.kind==='stage'?'stage':''}"><form class="note-in" data-logform="${esc(k)}" style="margin:0">
+              <input type="datetime-local" name="at" value="${esc(localDT(l.at))}" aria-label="날짜·시간">
+              ${l.kind==='stage'?`<div class="txt">단계 → ${esc(l.text)}</div>`:`<textarea name="text">${esc(l.text)}</textarea>`}
+              <div class="note-row"><button type="button" class="btn ghost" data-logdel="${esc(k)}">삭제</button><span style="flex:1"></span><button type="button" class="btn" data-logcancel>취소</button><button class="btn primary" type="submit">저장</button></div>
+            </form></li>`;
+          return `<li class="${l.kind==='stage'?'stage':''}"><div class="meta">${esc(shortDT(l.at))} · ${esc(l.by?nameOf(l.by):'')}${l.editedAt?' · 수정됨':''}${mine?` <button class="logedit" data-logedit="${esc(k)}">수정</button>`:''}</div><div class="txt">${l.kind==='stage'?'단계 → '+esc(l.text):esc(l.text)}</div></li>`;
+        }).join(''):'<li class="empty-tl">아직 기록이 없습니다.</li>'}</ul>
       </aside>
     </div>
     <div class="doc-actions">
@@ -510,7 +527,7 @@ function renderDoc(){
   app.querySelector('[data-act="edit"]')?.addEventListener('click',()=>go('edit',t._id));
   app.querySelectorAll('[data-act="notify"]').forEach(b=>b.addEventListener('click',async()=>{
     if(!await sendKakao(notifyMsg(t))) return;
-    if(canW) api.appendLog(t._id, [{at:new Date().toISOString(), by:S.email, kind:'note', text:`카톡 접수 알림 보냄 → ${handlerLabel(t)||'담당 미지정'}`}], {notifiedAt:new Date().toISOString()}).catch(()=>{});
+    if(canW && !t.notifiedAt) api.update(t._id, {notifiedAt:new Date().toISOString()}).catch(()=>{});
   }));
   app.querySelector('[data-act="notify-skip"]')?.addEventListener('click',()=>patch(t._id,{notifiedAt:'skip'},'알림 안내를 닫았습니다.'));
   app.querySelector('[data-act="del"]')?.addEventListener('click',()=>{ S.confirmDel=true; renderDoc(); });
@@ -525,9 +542,26 @@ function renderDoc(){
   app.querySelector('#note-f')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const ta = app.querySelector('#note-t'), text = ta.value.trim(); if(!text) return;
+    const at = fromLocalDT(app.querySelector('#note-at').value);
     ta.disabled = true;
-    try{ await api.appendLog(t._id, [{at:new Date().toISOString(), by:S.email, kind:'note', text}]); toast('기록을 남겼습니다.'); }
+    try{ await api.appendLog(t._id, [{id:newLogId(), at, by:S.email, kind:'note', text}]); toast('기록을 남겼습니다.'); }
     catch(_){ ta.disabled=false; toast('저장하지 못했습니다. 인터넷 연결을 확인해 주세요.'); }
+  });
+  app.querySelectorAll('[data-logedit]').forEach(b=>b.addEventListener('click',()=>{ S.editLog = b.dataset.logedit; renderDoc(); }));
+  app.querySelector('[data-logcancel]')?.addEventListener('click',()=>{ S.editLog = null; renderDoc(); });
+  app.querySelector('[data-logdel]')?.addEventListener('click',async e=>{
+    const k = e.currentTarget.dataset.logdel;
+    if(!confirm('이 기록을 삭제할까요?')) return;
+    try{ await api.editLog(t._id, k, null); S.editLog = null; toast('기록을 삭제했습니다.'); renderDoc(); }
+    catch(_){ toast('삭제하지 못했습니다.'); }
+  });
+  app.querySelector('[data-logform]')?.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const f = e.currentTarget, k = f.dataset.logform;
+    const patch = {at:fromLocalDT(f.at.value), editedAt:new Date().toISOString()};
+    if(f.text){ const v = f.text.value.trim(); if(!v){ toast('내용을 적어 주세요.'); return; } patch.text = v; }
+    try{ await api.editLog(t._id, k, patch); S.editLog = null; toast('기록을 고쳤습니다.'); renderDoc(); }
+    catch(_){ toast('저장하지 못했습니다.'); }
   });
   app.querySelectorAll('[data-dl]').forEach(a=>a.addEventListener('click',async e=>{
     e.preventDefault();
@@ -931,13 +965,22 @@ let api = {
     const {data:fresh, error:readErr} = await sb.from(TABLE).select('data').eq('id', id).single();
     if(readErr) throw readErr;
     const next = Object.assign({}, fresh.data, patch||{}, {updatedAt:new Date().toISOString()});
-    next.log = [...(fresh.data.log||[]), ...(entries||[])];
+    next.log = [...(fresh.data.log||[]), ...(entries||[]).map(e=>e.id ? e : Object.assign({id:newLogId()}, e))];
     const {error} = await sb.from(TABLE).update({data:next}).eq('id', id);
     if(error) throw error;
     await api.loadAll();
     if(S.view==='doc' && S.id===id) render();
   },
   async update(id, patch){ return api.appendLog(id, [], patch); },
+  /** 진행 기록 하나를 고치거나(patch) 지운다(null). 최신 내용 위에서 바꾼다. */
+  async editLog(id, key, patch){
+    const {data:fresh, error:readErr} = await sb.from(TABLE).select('data').eq('id', id).single();
+    if(readErr) throw readErr;
+    const log = (fresh.data.log||[]).flatMap(l => logKey(l)!==key ? [l] : patch ? [Object.assign({}, l, patch)] : []);
+    const {error} = await sb.from(TABLE).update({data:Object.assign({}, fresh.data, {log, updatedAt:new Date().toISOString()})}).eq('id', id);
+    if(error) throw error;
+    await api.loadAll();
+  },
   async remove(id){
     const cur = S.tickets.find(x=>x._id===id);
     const {data, error} = await sb.from(TABLE).delete().eq('id', id).select('id');
@@ -1086,6 +1129,7 @@ if(DEMO){
     async insert(d0){ const id='demo'+(++seq); S.tickets.push(Object.assign({}, d0, {_id:id})); return id; },
     async appendLog(id, entries, p){ const t = S.tickets.find(x=>x._id===id); Object.assign(t, p||{}); t.log=[...(t.log||[]),...(entries||[])]; save(); },
     async update(id,p){ return api.appendLog(id,[],p); },
+    async editLog(id,key,p){ const t = S.tickets.find(x=>x._id===id); t.log = (t.log||[]).flatMap(l=>logKey(l)!==key?[l]:p?[Object.assign({},l,p)]:[]); },
     async remove(id){ S.tickets = S.tickets.filter(x=>x._id!==id); },
     async uploadPhoto(id,f){ const u = URL.createObjectURL(f); S.photoUrls[u]=u; return u; },
     async removePhotos(){}, async signUrls(paths){ return paths.map(p=>[p,p]); },
