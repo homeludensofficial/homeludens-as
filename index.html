@@ -338,6 +338,15 @@ button.step:disabled{cursor:default;color:inherit}
 .notify-msg{grid-row:span 2;margin:0;background:var(--sheet);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;font:12px/1.6 var(--f-body);white-space:pre-wrap;word-break:break-all;color:var(--ink-2)}
 @media (max-width:720px){.notify-msg{grid-row:auto}}
 .notify-act{display:flex;gap:6px;flex-wrap:wrap;align-self:end}
+.usage{background:var(--sheet);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin-top:20px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 28px}
+@media (max-width:720px){.usage{grid-template-columns:minmax(0,1fr)}}
+.usage h2{grid-column:1/-1;font-size:14px;margin:0;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.usage h2 span{font-size:12px;color:var(--ink-3);font-weight:400}
+.uhead{display:flex;justify-content:space-between;gap:8px;font-size:13px;margin-bottom:6px}
+.uhead span{color:var(--ink-2);font-variant-numeric:tabular-nums}
+.ubar{height:8px;border-radius:4px;background:var(--tint);overflow:hidden}
+.ubar i{display:block;height:100%;background:var(--brand);border-radius:4px}
+.ubar i.warn{background:var(--ink)}
 .demo-bar{background:var(--accent-soft);color:var(--ink);text-align:center;font-size:12px;padding:4px 16px;font-weight:600}
 </style>
 </head>

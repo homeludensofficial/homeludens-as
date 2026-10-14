@@ -65,7 +65,7 @@ const S = {
   f:{group:'전체', stage:'진행 중', q:'', mine:false, alert:'', owner:''},
   me:{isAdmin:false, name:''}, members:[], staff:false,
   session:null, authReady:false, email:null, uid:null, offline:false,
-  photoUrls:{}, confirmDel:false, busy:false
+  photoUrls:{}, confirmDel:false, busy:false, usage:null
 };
 const app = document.getElementById('app');
 
@@ -276,6 +276,35 @@ function filtered(){
 function segHTML(name,vals,cur){
   return `<div class="seg" role="group" aria-label="${esc(name)}">`+vals.map(([v,lab])=>`<button type="button" data-seg="${esc(name)}" data-v="${esc(v)}" aria-pressed="${v===cur}">${lab}</button>`).join('')+`</div>`;
 }
+/* ---------- 저장 공간 (관리자만) ----------
+   Supabase 무료 요금제 한도: 파일 1GB (클레임 사진과 같이 씀), 데이터베이스 500MB. */
+const FILE_LIMIT = 1024**3, DB_LIMIT = 500*1024**2, USAGE_WARN = 0.8;
+const mb = b => b>=1024**3 ? (b/1024**3).toFixed(2)+'GB' : (b/1024**2).toFixed(b<10*1024**2?1:0)+'MB';
+function usageSum(){
+  const u = S.usage; if(!u) return null;
+  const by = k => u.find(r=>r.bucket===k) || {files:0, bytes:0};
+  const as = by('as-files'), ph = by('claim-photos'), db = by('(database)');
+  const fileBytes = u.filter(r=>r.bucket!=='(database)').reduce((a,r)=>a+Number(r.bytes||0),0);
+  return {as, ph, db, fileBytes, filePct:fileBytes/FILE_LIMIT, dbPct:Number(db.bytes||0)/DB_LIMIT};
+}
+function usageWarnHTML(){
+  const u = S.me.isAdmin && usageSum(); if(!u) return '';
+  const msg = [];
+  if(u.filePct>=USAGE_WARN) msg.push(`파일 저장 공간 ${Math.round(u.filePct*100)}% 사용 중 (${mb(u.fileBytes)} / 1GB)`);
+  if(u.dbPct>=USAGE_WARN) msg.push(`데이터베이스 ${Math.round(u.dbPct*100)}% 사용 중`);
+  return msg.length ? `<div class="alerts"><span class="alert" style="cursor:default">⚠ ${esc(msg.join(' · '))} — 오래된 파일을 정리하거나 Supabase 요금제를 올려야 합니다.</span></div>` : '';
+}
+function usagePanelHTML(){
+  if(!S.me.isAdmin) return '';
+  const u = usageSum();
+  if(!u) return `<section class="usage"><h2>저장 공간 <span>관리자만 보입니다</span></h2><p class="guide" style="margin:0">${S.usage===false?'사용량을 불러오지 못했습니다. Supabase에 as.sql 의 storage_usage 함수가 있어야 합니다.':'불러오는 중…'}</p></section>`;
+  const bar = (pct) => `<div class="ubar"><i style="width:${Math.min(100,Math.max(pct*100, pct>0?1:0)).toFixed(1)}%" class="${pct>=USAGE_WARN?'warn':''}"></i></div>`;
+  return `<section class="usage"><h2>저장 공간 <span>관리자만 보입니다 · Supabase 무료 요금제 기준</span></h2>
+    <div class="urow"><div class="uhead"><b>파일</b><span>${mb(u.fileBytes)} / 1GB · ${Math.round(u.filePct*100)}%</span></div>${bar(u.filePct)}
+      <p class="guide" style="margin:6px 0 0">AS 마감보고서·사진·영상 ${mb(Number(u.as.bytes||0))} (${Number(u.as.files||0)}개) · 클레임 사진 ${mb(Number(u.ph.bytes||0))} (${Number(u.ph.files||0)}개)</p></div>
+    <div class="urow"><div class="uhead"><b>데이터베이스</b><span>${mb(Number(u.db.bytes||0))} / 500MB · ${Math.round(u.dbPct*100)}%</span></div>${bar(u.dbPct)}</div>
+  </section>`;
+}
 function renderList(){
   const all = S.tickets, open = all.filter(t=>isOpen(t) && t.stage!==HOLD);
   const card = (g,label) => {
@@ -317,6 +346,7 @@ function renderList(){
     <h1 class="page">AS 현황판</h1>
     <p class="sub">접수된 AS는 현장 담당자의 재직 상태로 자동 구분됩니다. 카드를 누르면 그 구분만 보입니다.${S.offline?' · 저장소에 연결되지 않아 저장되지 않습니다.':''}</p>
     <div class="groups">${card('전체','전체')}${GROUPS.map(([g,l])=>card(g,l)).join('')}</div>
+    ${usageWarnHTML()}
     ${unk?`<p class="guide" style="margin-top:-8px">현장 담당자가 비어 있거나 명단에서 확인되지 않는 AS가 ${unk}건 있습니다. <button class="linkish" data-group="미확인">보기</button></p>`:''}
     ${(unC||noH||depN)?`<div class="alerts">
       ${noH?`<button class="alert" data-alert="nohandler" aria-pressed="${S.f.alert==='nohandler'}">처리 담당 지정 필요 ${noH}건</button>`:''}
@@ -330,7 +360,8 @@ function renderList(){
       <input class="search" id="f-q" type="search" placeholder="고객명, 주소, 연락처, 담당자 검색" value="${esc(S.f.q)}">
       ${all.length?'<button class="btn ghost" data-act="csv">CSV 내보내기</button>':''}
     </div>
-    ${body}`;
+    ${body}
+    ${usagePanelHTML()}`;
   app.querySelectorAll('[data-seg]').forEach(b=>b.addEventListener('click',()=>{ S.f[b.dataset.seg]=b.dataset.v; renderList(); }));
   app.querySelectorAll('[data-group]').forEach(b=>b.addEventListener('click',()=>{ const g=b.dataset.group; S.f.group = (S.f.group===g && g!=='전체') ? '전체' : g; renderList(); }));
   app.querySelectorAll('[data-alert]').forEach(b=>b.addEventListener('click',()=>{ const a=b.dataset.alert; S.f.alert = S.f.alert===a ? '' : a; if(S.f.alert) S.f.stage='전체'; renderList(); }));
@@ -645,6 +676,7 @@ async function uploadFiles(id, list, key='files'){
   if(added.length){
     const cur = S.tickets.find(x=>x._id===id);
     await api.update(id, {[key]:[...(cur?.[key]||[]), ...added]});
+    refreshUsage();
   }
   return added.length;
 }
@@ -958,6 +990,11 @@ let api = {
     if(error) throw error;
     return data.signedUrl;
   },
+  async loadUsage(){
+    const {data, error} = await sb.rpc('storage_usage');
+    if(error) throw error;
+    S.usage = data || [];
+  },
   async signUrls(paths, bucket=BUCKET){
     const {data} = await sb.storage.from(bucket).createSignedUrls(paths, 60*60*6);
     return (data||[]).filter(r=>r.signedUrl && r.path).map(r=>[r.path, r.signedUrl]);
@@ -1012,6 +1049,13 @@ async function onSession(session){
   openFromHash();
   subscribe();
   render();
+  refreshUsage();
+}
+/** 관리자면 저장 공간 사용량을 다시 읽는다 (로그인할 때, 파일을 올리거나 뺀 뒤). */
+async function refreshUsage(){
+  if(!S.me.isAdmin) return;
+  try{ await api.loadUsage(); }catch(_){ S.usage = false; }
+  if(S.view==='list' && !(app.contains(document.activeElement) && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) render();
 }
 
 document.getElementById('btn-logout').addEventListener('click', ()=>sb ? sb.auth.signOut() : location.reload());
@@ -1044,12 +1088,14 @@ if(DEMO){
     async remove(id){ S.tickets = S.tickets.filter(x=>x._id!==id); },
     async uploadPhoto(id,f){ const u = URL.createObjectURL(f); S.photoUrls[u]=u; return u; },
     async removePhotos(){}, async signUrls(paths){ return paths.map(p=>[p,p]); },
+    async loadUsage(){ S.usage = [{bucket:'as-files', files:212, bytes:438*1024**2},{bucket:'claim-photos', files:96, bytes:181*1024**2},{bucket:'(database)', files:null, bytes:14*1024**2}]; },
     async uploadFile(id,f){ return {path:URL.createObjectURL(f), name:f.name, size:f.size, type:f.type, at:new Date().toISOString(), by:S.email}; },
     async removeFiles(){}, async fileUrl(p){ return p; }
   };
   S.session = {user:{id:'demo', email:'me@x'}}; S.authReady = true; S.email = 'me@x'; S.staff = true; S.loaded = true;
   S.me = {isAdmin:true, name:'나관리'};
   document.getElementById('who-email').textContent = '나관리 · 관리자 (미리보기)';
+  api.loadUsage();
   history.replaceState(null,'',location.pathname);
   render();
 } else if(!sb){
