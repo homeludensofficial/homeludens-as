@@ -362,7 +362,7 @@ function renderList(){
       const o = ownerOf(t), g = groupOf(t), h = handlerLabel(t), el = elapsed(t);
       return `<tr data-open="${esc(t._id)}" tabindex="0">
         <td class="mono" data-c="hide">${esc(t.no||'—')}${+t.round>1?`<br><span class="flag">${esc(t.round)}차</span>`:''}</td>
-        <td class="cust"><b>${esc(t.customer||'(고객명 미입력)')}</b><span>${esc(t.address||'')}</span></td>
+        <td class="cust"><b>${esc(t.customer||'(고객명 미입력)')}${t.source==='고객 접수'?' <span class="pill src-cust">고객 신청</span>':''}</b><span>${esc(t.address||'')}</span></td>
         <td class="who-cell g-${esc(g)}" data-c="hide"><b>${esc(o.name||'—')}</b><span class="gtag">${esc(groupLabel(g))}</span></td>
         <td data-c="hide" style="white-space:nowrap">${h?esc(h):'<span class="flag hot">지정 필요</span>'}</td>
         <td data-c="hide">${esc(joinV(t.process))}</td>
@@ -444,7 +444,7 @@ function renderDoc(){
     <div class="doc" style="margin-top:12px">
       <div class="as-head">
         <div style="min-width:0">
-          <div class="doc-meta" style="margin:0 0 6px"><span class="mono">${esc(t.no||'')}</span>${stagePill(t)}<span class="gtag g-${esc(g)}">${esc(groupLabel(g))}</span><div class="flags">${flagsHTML(t,{all:true})}</div></div>
+          <div class="doc-meta" style="margin:0 0 6px"><span class="mono">${esc(t.no||'')}</span>${stagePill(t)}${t.source==='고객 접수'?'<span class="pill src-cust">고객 신청 (카카오톡)</span>':''}<span class="gtag g-${esc(g)}">${esc(groupLabel(g))}</span><div class="flags">${flagsHTML(t,{all:true})}</div></div>
           <h1>${esc(t.customer||'(고객명 미입력)')} 고객 AS</h1>
           <div class="cust-line">${esc(t.address||'')}</div>
         </div>
