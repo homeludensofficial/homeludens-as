@@ -279,7 +279,8 @@ function segHTML(name,vals,cur){
 /* ---------- 저장 공간 (관리자만) ----------
    Supabase 무료 요금제 한도: 파일 1GB (클레임 사진과 같이 씀), 데이터베이스 500MB. */
 const FILE_LIMIT = 1024**3, DB_LIMIT = 500*1024**2, USAGE_WARN = 0.8;
-const mb = b => b>=1024**3 ? (b/1024**3).toFixed(2)+'GB' : (b/1024**2).toFixed(b<10*1024**2?1:0)+'MB';
+const mb = b => !b ? '0MB' : b>=1024**3 ? (b/1024**3).toFixed(2)+'GB' : (b/1024**2).toFixed(b<10*1024**2?1:0)+'MB';
+const pctTxt = p => (p>0 && p<0.01 ? (p*100).toFixed(1) : Math.round(p*100)) + '%';
 function usageSum(){
   const u = S.usage; if(!u) return null;
   const by = k => u.find(r=>r.bucket===k) || {files:0, bytes:0};
@@ -300,9 +301,9 @@ function usagePanelHTML(){
   if(!u) return `<section class="usage"><h2>저장 공간 <span>관리자만 보입니다</span></h2><p class="guide" style="margin:0">${S.usage===false?'사용량을 불러오지 못했습니다. Supabase에 as.sql 의 storage_usage 함수가 있어야 합니다.':'불러오는 중…'}</p></section>`;
   const bar = (pct) => `<div class="ubar"><i style="width:${Math.min(100,Math.max(pct*100, pct>0?1:0)).toFixed(1)}%" class="${pct>=USAGE_WARN?'warn':''}"></i></div>`;
   return `<section class="usage"><h2>저장 공간 <span>관리자만 보입니다 · Supabase 무료 요금제 기준</span></h2>
-    <div class="urow"><div class="uhead"><b>파일</b><span>${mb(u.fileBytes)} / 1GB · ${Math.round(u.filePct*100)}%</span></div>${bar(u.filePct)}
+    <div class="urow"><div class="uhead"><b>파일</b><span>${mb(u.fileBytes)} / 1GB · ${pctTxt(u.filePct)}</span></div>${bar(u.filePct)}
       <p class="guide" style="margin:6px 0 0">AS 마감보고서·사진·영상 ${mb(Number(u.as.bytes||0))} (${Number(u.as.files||0)}개) · 클레임 사진 ${mb(Number(u.ph.bytes||0))} (${Number(u.ph.files||0)}개)</p></div>
-    <div class="urow"><div class="uhead"><b>데이터베이스</b><span>${mb(Number(u.db.bytes||0))} / 500MB · ${Math.round(u.dbPct*100)}%</span></div>${bar(u.dbPct)}</div>
+    <div class="urow"><div class="uhead"><b>데이터베이스</b><span>${mb(Number(u.db.bytes||0))} / 500MB · ${pctTxt(u.dbPct)}</span></div>${bar(u.dbPct)}</div>
   </section>`;
 }
 function renderList(){
