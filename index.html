@@ -29,8 +29,8 @@ img{max-width:100%}
 /* Layout: 상단 탭 바 + 단일 작업 영역. 현황판(구분 카드 + 표) → AS 기록(정보 + 진행 기록) → 작성(폼). 클레임 보고서와 같은 토큰을 쓴다. */
 :root{
   --paper:#f5f6f3; --sheet:#ffffff; --ink:#1d2532; --ink-2:#4d5766; --ink-3:#7c8592;
-  --line:#e2deda; --line-2:#cdc7c1; --tint:#f1eeeb;
-  --brand:#a69a8f; --brand-ink:#ffffff; --accent:#6f645a; --accent-ink:#ffffff; --accent-soft:#efebe7;
+  --line:#dde1dc; --line-2:#c9cec8; --tint:#eef1ec;
+  --brand:#627e49; --brand-ink:#ffffff; --accent:#4d6639; --accent-ink:#ffffff; --accent-soft:#edf1e8;
   --sev-s:#b4322a; --sev-s-bg:#fbe7e4; --sev-a:#a6620a; --sev-a-bg:#fcefd9; --sev-b:#46627a; --sev-b-bg:#e6edf3;
   --ok:#2f7a4d; --ok-bg:#e2f1e7; --stamp:#c0392b;
   --f-body:"IBM Plex Sans KR",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
@@ -42,13 +42,13 @@ img{max-width:100%}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --paper:#14181e; --sheet:#1b2028; --ink:#e7eaee; --ink-2:#b2b9c3; --ink-3:#848c97;
   --line:#2c333d; --line-2:#3a424d; --tint:#222831;
-  --brand:#a69a8f; --brand-ink:#1e1b18; --accent:#c9bfb5; --accent-ink:#1e1b18; --accent-soft:#2e2a26;
+  --brand:#7d9a62; --brand-ink:#11160c; --accent:#a9c38f; --accent-ink:#11160c; --accent-soft:#232c1c;
   --sev-s:#f08a7f; --sev-s-bg:#3a1f1d; --sev-a:#e8b15a; --sev-a-bg:#362a15; --sev-b:#9fb8cf; --sev-b-bg:#202c38;
   --ok:#7ccb98; --ok-bg:#1a3123; --stamp:#ef7d6f; --logo-filter:invert(1); color-scheme:dark}}
 :root[data-theme="dark"]{
   --paper:#14181e; --sheet:#1b2028; --ink:#e7eaee; --ink-2:#b2b9c3; --ink-3:#848c97;
   --line:#2c333d; --line-2:#3a424d; --tint:#222831;
-  --brand:#a69a8f; --brand-ink:#1e1b18; --accent:#c9bfb5; --accent-ink:#1e1b18; --accent-soft:#2e2a26;
+  --brand:#7d9a62; --brand-ink:#11160c; --accent:#a9c38f; --accent-ink:#11160c; --accent-soft:#232c1c;
   --sev-s:#f08a7f; --sev-s-bg:#3a1f1d; --sev-a:#e8b15a; --sev-a-bg:#362a15; --sev-b:#9fb8cf; --sev-b-bg:#202c38;
   --ok:#7ccb98; --ok-bg:#1a3123; --stamp:#ef7d6f; --logo-filter:invert(1); color-scheme:dark}
 *{box-sizing:border-box}
@@ -239,7 +239,7 @@ table.ledger{width:100%;border-collapse:collapse;font-size:13px}
 @media (max-width:640px){.who span{display:none}}
 
 /* ---------- AS 전용 ----------
-   색은 클레임 보고서처럼 한 계열만 쓴다: 홈루덴스 Taupe Brown #a69a8f(--brand) · 연노랑(--accent-soft) · 먹색(--ink) · 회색.
+   색은 클레임 보고서처럼 한 계열만 쓴다: 홈루덴스 Olive Moss #627e49(--brand) · 연노랑(--accent-soft) · 먹색(--ink) · 회색.
    손이 가야 하는 것(미연락·담당 미지정·예치금 차감)만 연노랑 바탕으로 띄우고 나머지는 회색. */
 @media (max-width:640px){.tabs{order:3;width:100%;overflow-x:auto}.tab{white-space:nowrap}}
 
