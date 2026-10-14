@@ -27,8 +27,7 @@ const SECTIONS = [
   {no:'2', title:'고객 · 현장', fields:[
     ['customer','고객명','text'],
     ['phone','고객 연락처','tel',{ph:'010-0000-0000'}],
-    ['address','현장 주소','text',{wide:true,ph:'계약서·마감보고서와 같은 주소'}],
-    ['siteCode','현장코드','text',{ph:'마감보고서의 현장코드'}],
+    ['address','현장 주소','text',{wide:true,ph:'도로명 주소 정확히 기입'}],
     ['finishedAt','준공일 (마감일)','date'],
     ['builtYear','시공 연도','number',{ph:'준공일을 모르면 연도만 (예: 2024)'}]
   ]},
@@ -258,7 +257,7 @@ function filtered(){
     if(S.f.owner && ownerKey(t)!==S.f.owner) return false;
     if(q){
       const o = ownerOf(t), h = handlerLabel(t);
-      const hay = [t.no,t.customer,t.phone,t.address,t.siteCode,t.symptom,t.vendor,o.name,h].join(' ').toLowerCase();
+      const hay = [t.no,t.customer,t.phone,t.address,t.symptom,t.vendor,o.name,h].join(' ').toLowerCase();
       if(!hay.includes(q)) return false;
     }
     return true;
@@ -340,11 +339,11 @@ function renderList(){
 }
 
 function exportCSV(rows){
-  const head = ['No','접수번호','접수일','회차','접수 경로','고객명','연락처','현장 주소','현장코드','준공일','시공 연도','첨부 파일','현장 담당자','구분','퇴사일','처리 담당','공정','문제 내용','비고','비용 사전 안내','진행 단계','첫 연락일','방문 일정','처리 업체','원인','비용 구분','부품비','출장비','공임','기타','비용 합계','비용 부담','고객 청구액','처리 완료일','고객 만족도','처리 결과','고객 피드백','보증','예치금','경과일'];
+  const head = ['No','접수번호','접수일','회차','접수 경로','고객명','연락처','현장 주소','준공일','시공 연도','첨부 파일','현장 담당자','구분','퇴사일','처리 담당','공정','문제 내용','비고','비용 사전 안내','진행 단계','첫 연락일','방문 일정','처리 업체','원인','비용 구분','부품비','출장비','공임','기타','비용 합계','비용 부담','고객 청구액','처리 완료일','고객 만족도','처리 결과','고객 피드백','보증','예치금','경과일'];
   const q = v => { const s=String(v??''); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
   const lines = [head.join(',')].concat(rows.map((t,i)=>{
     const o = ownerOf(t), h = handlerLabel(t);
-    return [i+1,t.no,t.receivedAt,t.round,t.channel,t.customer,t.phone,t.address,t.siteCode,t.finishedAt,t.builtYear,(t.files||[]).map(f=>f.name).join(' / '),o.name,groupLabel(groupOf(t)),t.resignedAt,h,t.process,t.symptom,t.note,t.costNotice?'안내함':'',t.stage||'접수',t.contactedAt,fmtDT(t.visitAt),t.vendor,t.cause,t.charge,
+    return [i+1,t.no,t.receivedAt,t.round,t.channel,t.customer,t.phone,t.address,t.finishedAt,t.builtYear,(t.files||[]).map(f=>f.name).join(' / '),o.name,groupLabel(groupOf(t)),t.resignedAt,h,t.process,t.symptom,t.note,t.costNotice?'안내함':'',t.stage||'접수',t.contactedAt,fmtDT(t.visitAt),t.vendor,t.cause,t.charge,
       ...COSTS.map(([k])=>t.costs?.[k]?.amt??''),costTotal(t)||'',t.costBearer,t.customerCharge,t.doneAt,t.satisfaction,t.result,t.feedback,warranty(t).label,deposit(t)?.label||'',elapsed(t)].map(q).join(',');
   }));
   const blob = new Blob(['﻿'+lines.join('\r\n')], {type:'text/csv;charset=utf-8'});
@@ -405,7 +404,6 @@ function renderDoc(){
             ${kv('고객명',t.customer)}
             <div><dt>연락처</dt><dd>${t.phone?`<a href="tel:${esc(String(t.phone).replace(/[^\d+]/g,''))}">${esc(t.phone)}</a>`:'<span class="blank">—</span>'}</dd></div>
             ${kv('현장 주소',t.address,true)}
-            ${kv('현장코드',t.siteCode)}
             ${kv('회차',t.round?t.round+'차':'')}
             ${kv('준공일',t.finishedAt||(t.builtYear?t.builtYear+'년 시공':''))}
             <div><dt>보증</dt><dd><span class="flag ${w.cls}">${esc(w.label)}</span></dd></div>
