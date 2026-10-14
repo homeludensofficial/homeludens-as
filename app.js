@@ -15,7 +15,6 @@ const HOLD = '보류';
 OPT.stage = [...STAGES, HOLD];
 const GROUPS = [['재직','재직자 현장'],['휴직','휴직자 현장'],['퇴사','퇴사자 현장']];
 const COSTS = [['parts','부품비'],['trip','출장비'],['labor','공임 / 시공비'],['etc','기타']];
-const NONE = '__none';
 
 /* ---------- 작성 항목 ---------- */
 const SECTIONS = [
@@ -570,15 +569,25 @@ function memberOptions(cur, onlyActive){
   if(onlyActive) return by('재직').map(opt).join('');
   return GROUPS.map(([st,l])=>{ const list = by(st); return list.length?`<optgroup label="${esc(st)}">${list.map(opt).join('')}</optgroup>`:''; }).join('');
 }
+/** 현장 담당자: 재직자는 목록에서 고르면 직원 명단과 연결된다.
+    휴직·퇴사자는 목록에 없고, 이름을 직접 적은 뒤 휴직/퇴사를 고른다. */
+const activeMembers = () => S.members.filter(m=>normStatus(m.status)==='재직').sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+function matchMember(name){
+  const hit = activeMembers().filter(m=>m.name===String(name||'').trim());
+  return hit.length===1 ? hit[0] : null;
+}
 function ownerSecHTML(t){
-  const ownerSel = t.ownerEmail===NONE || (!t.ownerEmail && t.ownerName) ? NONE : (t.ownerEmail||'');
+  const o = ownerOf(t);
+  const curName = o.name || '';
+  const curStatus = o.email ? '' : normStatus(t.ownerStatus);
   return `<div class="grid">
-    <div class="fld"><label for="f_ownerEmail">현장 담당자 (마감보고서 담당)</label>
-      <select id="f_ownerEmail"><option value="">선택하세요</option>${memberOptions(ownerSel)}<option value="${NONE}" ${ownerSel===NONE?'selected':''}>명단에 없는 사람 (직접 입력)</option></select></div>
+    <div class="fld"><label for="f_ownerName">현장 담당자 (마감보고서 담당)</label>
+      <input type="text" id="f_ownerName" list="owner-list" autocomplete="off" value="${esc(curName)}" placeholder="이름을 적거나 목록에서 고르세요">
+      <datalist id="owner-list">${activeMembers().map(m=>`<option value="${esc(m.name)}">${esc(m.dept||'')}</option>`).join('')}</datalist>
+      <span class="hint">재직자는 목록에서 고르고, 휴직·퇴사자는 이름을 직접 적어 주세요.</span></div>
     <div class="fld"><label for="f_handlerEmail">처리 담당</label>
       <select id="f_handlerEmail"><option value="">자동 (재직자 현장은 본인, 휴직·퇴사자 현장은 현장팀)</option><option value="${TEAM}" ${t.handlerEmail===TEAM?'selected':''}>현장팀 ${esc(FIELD_TEAM.join('·'))}</option><optgroup label="다른 사람 지정">${memberOptions(t.handlerEmail||'',true)}</optgroup></select></div>
-    <div class="fld" data-show="none"><label for="f_ownerName">담당자 이름</label><input type="text" id="f_ownerName" value="${esc(t.ownerName||'')}"></div>
-    <div class="fld" data-show="none"><span class="lbl">담당자 상태</span><div class="chips">${OPT.ownerStatus.map((s,i)=>`<label class="chip"><input type="radio" name="f_ownerStatus" id="f_ownerStatus_${i}" value="${s}" ${normStatus(t.ownerStatus)===s?'checked':''}><span>${s}</span></label>`).join('')}</div></div>
+    <div class="fld" data-show="none"><span class="lbl">담당자 상태</span><div class="chips">${['휴직','퇴사'].map((s,i)=>`<label class="chip"><input type="radio" name="f_ownerStatus" id="f_ownerStatus_${i}" value="${s}" ${curStatus===s?'checked':''}><span>${s}</span></label>`).join('')}</div><span class="hint">재직자 목록에 없는 이름입니다. 휴직인지 퇴사인지 골라 주세요.</span></div>
     <div class="fld" data-show="out"><label for="f_resignedAt">퇴사일</label><input type="date" id="f_resignedAt" value="${esc(t.resignedAt||'')}"><span class="hint">퇴사 후 1년 안의 AS는 예치금 차감 대상입니다.</span></div>
     <div class="fld wide"><div class="auto" id="owner-auto"></div></div>
   </div>`;
@@ -592,10 +601,10 @@ function readForm(frm){
     else if(type==='number') data[key] = parseNum(frm.querySelector('#f_'+key).value);
     else data[key] = frm.querySelector('#f_'+key).value.trim();
   }));
-  const oe = frm.querySelector('#f_ownerEmail').value;
-  data.ownerEmail = oe && oe!==NONE ? oe : '';
-  data.ownerName = oe===NONE ? frm.querySelector('#f_ownerName').value.trim() : (member(oe)?.name||'');
-  data.ownerStatus = oe===NONE ? (frm.querySelector('[name="f_ownerStatus"]:checked')?.value||'') : '';
+  const oname = frm.querySelector('#f_ownerName').value.trim(), om = matchMember(oname);
+  data.ownerEmail = om ? om.email : '';
+  data.ownerName = om ? om.name : oname;
+  data.ownerStatus = om || !oname ? '' : (frm.querySelector('[name="f_ownerStatus"]:checked')?.value || '');
   data.handlerEmail = frm.querySelector('#f_handlerEmail').value || '';
   data.resignedAt = frm.querySelector('#f_resignedAt').value;
   data.costs = {};
@@ -650,20 +659,27 @@ function renderEdit(){
   }));
   frm.addEventListener('change',updateAuto);
   frm.querySelector('#f_address').addEventListener('input',updateAuto);
+  frm.querySelector('#f_ownerName').addEventListener('input',updateAuto);
   function updateAuto(){
     const d = readForm(frm);
     frm.querySelector('#cost-total').textContent = won(d.costTotal);
     const pend = [...frm.querySelector('#f_files').files];
     frm.querySelector('#pending').textContent = pend.length ? `저장할 때 함께 올립니다: ${pend.map(f=>f.name).join(', ')}` : '';
-    const oe = frm.querySelector('#f_ownerEmail').value;
-    frm.querySelectorAll('[data-show="none"]').forEach(el=>el.hidden = oe!==NONE);
+    const oe = d.ownerName;
+    frm.querySelectorAll('[data-show="none"]').forEach(el=>el.hidden = !oe || !!d.ownerEmail);
+    // 포털 명단에 휴직·퇴사로 있는 이름이면 상태를 미리 골라 둔다
+    if(oe && !d.ownerEmail && !d.ownerStatus){
+      const past = S.members.filter(m=>m.name===oe && ['휴직','퇴사'].includes(normStatus(m.status)));
+      if(past.length===1){ const r = frm.querySelector(`[name="f_ownerStatus"][value="${normStatus(past[0].status)}"]`); if(r){ r.checked = true; d.ownerStatus = r.value; } }
+    }
     const probe = Object.assign({}, t, d);
     const g = groupOf(probe);
     frm.querySelectorAll('[data-show="out"]').forEach(el=>el.hidden = g!=='퇴사');
     if(g==='퇴사' && !frm.querySelector('#f_resignedAt').value){ const r = resignedFromOthers(probe); if(r){ frm.querySelector('#f_resignedAt').value = r; probe.resignedAt = r; } }
     const h = handlerLabel(probe), dep = deposit(probe);
     const box = frm.querySelector('#owner-auto');
-    if(!oe) box.innerHTML = '현장 담당자를 고르면 재직·휴직·퇴사 구분과 처리 담당이 자동으로 정해집니다.';
+    if(!oe) box.innerHTML = '현장 담당자를 적으면 재직·휴직·퇴사 구분과 처리 담당이 자동으로 정해집니다.';
+    else if(!d.ownerEmail && !d.ownerStatus) box.innerHTML = `<span class="flag hot">상태 선택 필요</span> ${esc(oe)} 님이 휴직인지 퇴사인지 골라 주세요.`;
     else box.innerHTML = `구분: <b class="gtag g-${esc(g)}">${esc(groupLabel(g))}</b> · 처리 담당: ${h?`<b>${esc(h)}</b>`:'<span class="flag hot">지정 필요</span> 현장 담당자 상태를 확인하거나 처리할 사람을 골라 주세요'}${dep?` · <span class="flag ${dep.cls}">${esc(dep.label)}</span>`:''}`;
     const w = warranty(probe), ca = frm.querySelector('#charge-auto');
     const careless = d.cause==='고객 사용 부주의';
