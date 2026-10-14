@@ -19,7 +19,7 @@ img{max-width:100%}
 /* Layout: 상단 탭 바 + 단일 작업 영역. 현황판(구분 카드 + 표) → AS 기록(정보 + 진행 기록) → 작성(폼). 클레임 보고서와 같은 토큰을 쓴다. */
 :root{
   --paper:#f5f6f3; --sheet:#ffffff; --ink:#1d2532; --ink-2:#4d5766; --ink-3:#7c8592;
-  --line:#dde1dc; --line-2:#c9cec8; --tint:#eef1ec;
+  --line:#e2deda; --line-2:#cdc7c1; --tint:#f1eeeb;
   --brand:#a69a8f; --brand-ink:#ffffff; --accent:#6f645a; --accent-ink:#ffffff; --accent-soft:#efebe7;
   --sev-s:#b4322a; --sev-s-bg:#fbe7e4; --sev-a:#a6620a; --sev-a-bg:#fcefd9; --sev-b:#46627a; --sev-b-bg:#e6edf3;
   --ok:#2f7a4d; --ok-bg:#e2f1e7; --stamp:#c0392b;
@@ -319,6 +319,9 @@ button.step:disabled{cursor:default;color:inherit}
 .rule h3{margin:0 0 6px;font-size:14px}
 .rule ul{margin:0;padding-left:18px;font-size:13px;color:var(--ink-2)}
 .rule li{margin:2px 0}
+.std tbody tr:first-child > *{border-top:1px solid var(--line)}
+.std th{width:180px}
+@media (max-width:640px){.std th{width:96px}}
 .flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:12px;font-size:13px}
 .flow span{border:1px solid var(--line-2);border-radius:999px;padding:4px 12px;background:var(--sheet)}
 .flow span.key{background:var(--accent-soft);border-color:var(--brand);font-weight:600}

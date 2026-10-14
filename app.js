@@ -792,7 +792,7 @@ function renderGuide(){
     <section class="form-sec">
       <h2>비용</h2>
       <table class="std"><tbody>
-        <tr><th style="width:180px">준공 후 1년 이내</th><td>A/S를 무상으로 제공합니다. (준공일 기준, 접수일로 판단)</td></tr>
+        <tr><th>준공 후 1년 이내</th><td>A/S를 무상으로 제공합니다. (준공일 기준, 접수일로 판단)</td></tr>
         <tr><th>고객 부주의</th><td>기간과 관계없이 별도 비용이 발생할 수 있습니다.</td></tr>
         <tr><th>보증 기간 경과</th><td>부품비·출장비 등 비용 발생 가능성을 고객에게 <b>미리</b> 안내하고, '비용 안내'에 체크합니다.</td></tr>
         <tr><th>예치금</th><td>정산 때마다 20만 원씩 24회, 480만 원까지 적립. 퇴사 후 1년 동안 담당 현장 AS 비용을 차감합니다.</td></tr>
