@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>홈루덴스 AS 진행관리</title>
 <!-- 카카오톡·문자로 주소를 보낼 때의 미리보기 (클레임 보고서와 같은 모양, ⚒️).
      그림을 바꾸면 이름을 바꾸고(og-v2.png …) 카카오 캐시를 비운다: https://developers.kakao.com/tool/clear/og -->
@@ -369,6 +372,7 @@ button.step:disabled{cursor:default;color:inherit}
 .vendor-row .btn{padding:6px 10px;font-size:16px;line-height:1}
 @media (max-width:640px){.vendor-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}.vendor-row input[data-v="name"]{grid-column:1/-1}}
 .demo-bar{background:var(--accent-soft);color:var(--ink);text-align:center;font-size:12px;padding:4px 16px;font-weight:600}
+.who #btn-push[aria-pressed="true"]{color:var(--accent);font-weight:600}
 </style>
 </head>
 <body>
@@ -381,7 +385,7 @@ button.step:disabled{cursor:default;color:inherit}
       <button class="tab" data-view="guide">처리 기준</button>
     </nav>
     <button class="btn primary" id="btn-new" hidden>+ AS 접수</button>
-    <div class="who" id="who" hidden><span id="who-email"></span><button class="btn ghost" id="btn-logout">로그아웃</button></div>
+    <div class="who" id="who" hidden><span id="who-email"></span><button class="btn ghost" id="btn-push" hidden aria-pressed="false">알림 받기</button><button class="btn ghost" id="btn-logout">로그아웃</button></div>
   </div>
 </header>
 
@@ -390,6 +394,7 @@ button.step:disabled{cursor:default;color:inherit}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
+<script src="push.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

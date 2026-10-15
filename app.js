@@ -1129,6 +1129,7 @@ async function onSession(session){
   if(!session){
     if(S.chan){ sb.removeChannel(S.chan); S.chan = null; }
     S.tickets = []; S.members = []; S.staff = false; S.me = {isAdmin:false, name:''}; S.loaded = false; S.view = 'list';
+    window.HLPush?.hide();
     render(); return;
   }
   if(sameUser && S.loaded) return;
@@ -1139,6 +1140,7 @@ async function onSession(session){
   catch(e){ S.loaded = true; S.offline = true; toast('AS 데이터를 불러오지 못했습니다.'); }
   openFromHash();
   subscribe();
+  if(S.staff && sb) window.HLPush?.init({sb, app:'as', email:S.email, button:document.getElementById('btn-push'), toast});
   render();
   refreshUsage();
 }
