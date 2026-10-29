@@ -216,6 +216,14 @@ async function sendKakao(text){
 /* ---------- 여러 개 고르는 항목 · 업체 여러 곳 (클레임 보고서와 같은 방식) ---------- */
 // 예전 기록은 문자열 하나, 새 기록은 배열
 const toArr = v => Array.isArray(v) ? v.filter(Boolean) : (v ? [v] : []);
+// 고객 신청(care)의 '해당 공간' → 공정. 공정이 비어 있을 때만 채운다 (직원이 고른 값은 그대로).
+const PLACE_PROCESS = {'욕실':'욕실','주방':'주방','설비·누수':'설비','도배·벽':'도배','바닥':'마루','타일':'타일','문·창호':'창호','전기·조명':'전기·조명','가구':'가구','기타':'기타'};
+const withPlaceProcess = t => {
+  if(toArr(t.process).length) return t;
+  const m = /^문제 위치: (.+)$/m.exec(t.note||'');
+  const p = m ? [...new Set(m[1].split(',').map(x=>PLACE_PROCESS[x.trim()]).filter(Boolean))] : [];
+  return p.length ? Object.assign(t, {process:p}) : t;
+};
 const joinV = v => toArr(v).join(', ');
 // 처리 업체: 새 기록은 vendors 배열, 예전 기록은 '업체 / 기사 / 전화' 글자 하나
 function vendorsOf(t){
@@ -998,7 +1006,7 @@ let api = {
   async loadAll(){
     const {data, error} = await sb.from(TABLE).select('id,data').order('created_at', {ascending:true});
     if(error) throw error;
-    S.tickets = data.map(r=>Object.assign({}, r.data, {_id:r.id}));
+    S.tickets = data.map(r=>withPlaceProcess(Object.assign({}, r.data, {_id:r.id})));
     S.loaded = true;
   },
   async insert(d){
