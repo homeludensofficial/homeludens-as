@@ -1,0 +1,107 @@
+
+/* ---------- 휴대폰 화면 (720px 이하) ----------
+   PC 화면은 그대로 두고, 휴대폰에서만 위 메뉴 대신 아래 메뉴 줄 · 큰 숫자 카드 · 카드 목록으로 보여 준다.
+   두 앱(클레임·AS)이 같은 파일을 쓴다. 배포 스크립트가 각 앱으로 복사한다. 색은 각 앱의 --brand 를 따른다. */
+.mtab,.mtiles,.mcards,.only-m,.mact{display:none}
+@media (max-width:720px){
+  body{font-size:15px}
+  .bar-in{padding-block:12px;gap:10px}
+  .bar .tabs,.bar #btn-new,.bar .who{display:none!important}
+  .brand img{height:17px}
+  .brand span{font-size:14px;font-weight:600;color:var(--ink)}
+  .wrap{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
+  h1.page{font-size:24px;margin:20px 0 14px}
+  .sub,.hide-m{display:none!important}
+  .only-m{display:block}
+
+  /* 아래 메뉴 줄 */
+  .mtab{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);position:fixed;left:0;right:0;bottom:0;z-index:20;
+    background:var(--sheet);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .mtab[hidden]{display:none}
+  .mtab button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;border:0;background:none;
+    padding:9px 0 8px;color:var(--ink-3);font-size:11px;font-weight:500;min-height:58px}
+  .mtab svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .mtab button[aria-current="true"]{color:var(--brand);font-weight:700}
+  .mtab button[aria-current="true"] svg{stroke-width:2}
+  .mtab button[aria-current="true"]::before{content:"";position:absolute;top:0;left:50%;width:32px;height:3px;margin-left:-16px;border-radius:0 0 3px 3px;background:var(--brand)}
+  .mtab .plus svg{width:34px;height:34px;padding:7px;margin-top:-6px;border-radius:50%;background:var(--brand);stroke:var(--brand-ink);stroke-width:2.2}
+  .mtab .plus[aria-current="true"]::before{display:none}
+  .mtab em{position:absolute;top:5px;left:calc(50% + 5px);font-style:normal;font-size:10px;font-weight:700;line-height:17px;min-width:17px;padding:0 4px;
+    border-radius:9px;background:var(--brand);color:var(--brand-ink);text-align:center}
+  .mtab em:empty{display:none}
+
+  /* 큰 숫자 카드 — 누르면 그것만 걸러 보기 */
+  .mtiles{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px;margin-bottom:14px}
+  .mtile{border:1px solid var(--line);background:var(--sheet);border-radius:12px;padding:14px 6px 12px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
+  .mtile strong{font-size:28px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
+  .mtile span{font-size:12px;color:var(--ink-2);white-space:nowrap}
+  .mtile.hot strong{color:var(--brand)}
+  .mtile[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+  .mtile[aria-pressed="true"] strong,.mtile[aria-pressed="true"] span{color:var(--brand-ink)}
+
+  /* 걸러 보기 줄: 검색은 한 줄 전체, 나머지는 옆으로 밀기 */
+  .filters{gap:8px;margin-bottom:12px}
+  .filters .search{order:-1;flex:1 1 100%;padding:11px 12px;font-size:16px;border-radius:10px}
+  .filters .flabel{display:none}
+  .filters > span{max-width:100%}
+  .seg{display:flex;max-width:100%;overflow-x:auto;scrollbar-width:none;border-radius:10px}
+  .seg::-webkit-scrollbar{display:none}
+  .seg button{flex:none;padding:8px 13px;font-size:14px}
+  .seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--brand);font-weight:700;box-shadow:inset 0 0 0 1.5px var(--brand);border-radius:9px}
+
+  /* 오늘: 날짜·이름 + 먼저 볼 것 */
+  .mhead{margin:20px 0 12px}
+  .mhead small{display:block;font-size:13px;color:var(--ink-3)}
+  .mhead h2{font-size:23px;font-weight:700;margin:2px 0 0;letter-spacing:-.01em}
+  .mhead h2 span{color:var(--brand)}
+  .mfocus{background:var(--sheet);border:1px solid var(--line);border-radius:14px;margin-bottom:18px;overflow:hidden}
+  .mfocus button{display:flex;align-items:center;gap:10px;width:100%;border:0;border-bottom:1px solid var(--line);background:none;padding:13px 16px;text-align:left;color:var(--ink)}
+  .mfocus button:last-of-type{border-bottom:0}
+  .mfocus button:active{background:var(--tint)}
+  .mfocus .why{flex:none;min-width:84px;text-align:center;font-size:12px;font-weight:700;color:var(--brand);background:var(--accent-soft);border-radius:6px;padding:4px 8px}
+  .mfocus .txt{flex:1;min-width:0;display:flex;flex-direction:column}
+  .mfocus .txt b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:15px}
+  .mfocus .txt small{font-size:12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mfocus .go{flex:none;color:var(--ink-3);font-size:20px;line-height:1}
+  .mfocus .more{margin:0;padding:10px 16px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)}
+
+  /* 목록: 표 대신 카드. 왼쪽 띠 = 단계 색, 가운데 막대 = 어디까지 왔는지, 오른쪽 위 = 바로 전화 */
+  .tbl-wrap{display:none}
+  .mcards{display:flex;flex-direction:column;gap:10px}
+  .mcard{position:relative;display:block;width:100%;text-align:left;border:1px solid var(--line);border-left:4px solid var(--bar,var(--line-2));background:var(--sheet);border-radius:12px;padding:14px 14px 13px 15px;color:var(--ink);cursor:pointer}
+  .mcard:active{background:var(--tint)}
+  .mcard .t{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:38px}
+  .mcard .t b{font-size:17px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mcard .t b .pill{font-size:11px;vertical-align:2px;margin-left:4px}
+  .mcard .a{font-size:13px;color:var(--ink-3);margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mcall{flex:none;width:38px;height:38px;border-radius:50%;border:1px solid var(--line-2);display:grid;place-items:center;color:var(--brand);background:var(--sheet)}
+  .mcall svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
+  .mcall:active{background:var(--accent-soft)}
+  .mtrack{display:flex;gap:3px;margin:11px 0 8px}
+  .mtrack i{flex:1;height:4px;border-radius:2px;background:var(--line)}
+  .mtrack i.on{background:var(--bar,var(--brand))}
+  .mcard .m{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px;color:var(--ink-2)}
+  .mcard .m > span:last-child{flex:none;text-align:right}
+  .mcard .m b{font-weight:600;color:var(--ink)}
+  .mcard .over{color:var(--brand);font-weight:700}
+  .mcard .need{color:var(--brand);font-weight:700}
+
+  /* 상세 화면: 아래 메뉴 위에 전화 걸기 · 수정 */
+  .mact{display:flex;gap:8px;position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom,0px));z-index:19;
+    padding:10px 16px;background:var(--paper);border-top:1px solid var(--line)}
+  .mact .btn{flex:1;justify-content:center;padding:12px;font-size:15px;border-radius:10px}
+  .mact a.btn{color:var(--ink);text-decoration:none}
+  .mact svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
+  .wrap:has(.mact){padding-bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+
+  /* 상세·작성 화면: 버튼을 손가락 크기로 */
+  .back{margin-top:14px}
+  .btn{padding:9px 14px}
+
+  /* 내 정보 */
+  .me-card{background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:12px}
+  .me-card b{display:block;font-size:19px}
+  .me-card span{display:block;color:var(--ink-3);font-size:14px;margin-top:2px;word-break:break-all}
+  .mbig{display:flex;width:100%;justify-content:center;padding:14px;font-size:16px;border-radius:12px;margin-bottom:10px}
+  .me-note{color:var(--ink-3);font-size:13px;margin-top:16px;line-height:1.6}
+}

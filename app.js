@@ -273,8 +273,20 @@ function go(view,id){
 }
 document.querySelectorAll('.tab[data-view]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.view)));
 document.getElementById('btn-new').addEventListener('click',()=>go('edit'));
+document.querySelectorAll('#mtab [data-mv]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.mv)));
 
+/* 휴대폰 아래 메뉴 줄: 지금 화면 표시 + 내가 처리할 AS 숫자 */
+function renderMtab(){
+  const nav = document.getElementById('mtab');
+  nav.hidden = !S.session || (S.loaded && !S.staff);
+  if(nav.hidden) return;
+  const cur = S.view==='edit' && !S.id ? 'edit' : (S.view==='doc'||S.view==='edit') ? 'list' : S.view;
+  nav.querySelectorAll('[data-mv]').forEach(b=>b.setAttribute('aria-current', String(b.dataset.mv===cur)));
+  document.getElementById('mt-new').hidden = !!S.offline;
+  document.getElementById('mt-badge').textContent = S.tickets.filter(t=>isOpen(t) && t.stage!==HOLD && isMine(t)).length || '';
+}
 function render(){
+  renderMtab();
   document.getElementById('nav').hidden = !S.session;
   document.getElementById('who').hidden = !S.session;
   if(!S.session){ renderLogin(); return; }
@@ -286,6 +298,7 @@ function render(){
   else if(S.view==='edit') renderEdit();
   else if(S.view==='people') renderPeople();
   else if(S.view==='guide') renderGuide();
+  else if(S.view==='me') renderMe();
 }
 
 /* ---------- 현황판 ---------- */
@@ -342,6 +355,38 @@ function usagePanelHTML(){
     <div class="urow"><div class="uhead"><b>데이터베이스</b><span>${mb(Number(u.db.bytes||0))} / 500MB · ${pctTxt(u.dbPct)}</span></div>${bar(u.dbPct)}</div>
   </section>`;
 }
+/* ---------- 휴대폰 화면 조각 ---------- */
+const PHONE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 3.5h3l1.6 4.4-2.1 1.4a11.5 11.5 0 0 0 5.6 5.6l1.4-2.1 4.4 1.6v3a2 2 0 0 1-2.1 2A16.5 16.5 0 0 1 4.6 5.6a2 2 0 0 1 2-2.1z"/></svg>';
+const telOf = p => String(p||'').replace(/[^\d+]/g,'');
+const todayLabel = () => { const d=new Date(); return `${d.getMonth()+1}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]}요일`; };
+/** 먼저 볼 것: 오늘 방문 → 처리 담당 없음 → 지연(내 AS, 관리자는 전체) → 내 AS 중 아직 고객 연락 전 */
+function focusList(){
+  const out = [], seen = new Set(), add = (t,why) => { if(!seen.has(t._id)){ seen.add(t._id); out.push([t,why]); } };
+  const open = S.tickets.filter(t=>isOpen(t) && t.stage!==HOLD);
+  open.filter(t=>String(t.visitAt||'').startsWith(todayStr())).sort((a,b)=>String(a.visitAt).localeCompare(String(b.visitAt)))
+    .forEach(t=>add(t,'오늘 방문 '+(String(t.visitAt).split('T')[1]||'').slice(0,5)));
+  open.filter(needsHandler).forEach(t=>add(t,'담당 지정'));
+  open.filter(t=>(isMine(t) || S.me.isAdmin) && delayOf(t)).forEach(t=>add(t,'지연'));
+  open.filter(t=>isMine(t) && (t.stage||'접수')==='접수').forEach(t=>add(t,'고객 연락'));
+  return out;
+}
+function mheadHTML(){
+  const fl = focusList();
+  return `<div class="only-m mhead"><small>${todayLabel()}${S.me.name?' · '+esc(S.me.name)+'님':''}</small>
+      <h2>${fl.length?`먼저 볼 것 <span>${fl.length}건</span>`:'먼저 볼 것이 없습니다'}</h2></div>
+    ${fl.length?`<div class="only-m mfocus">${fl.slice(0,5).map(([t,why])=>`<button type="button" data-open="${esc(t._id)}"><span class="why">${esc(why)}</span><span class="txt"><b>${esc(t.customer||'(고객명 미입력)')}</b><small>${esc([t.stage||'접수', joinV(t.process), delayOf(t)||(elapsed(t)===''?'':elapsed(t)===0?'오늘 접수':elapsed(t)+'일째')].filter(Boolean).join(' · '))}</small></span><span class="go" aria-hidden="true">›</span></button>`).join('')}${fl.length>5?`<p class="more">외 ${fl.length-5}건은 아래 목록에서</p>`:''}</div>`:''}`;
+}
+function mcardHTML(t){
+  const st = t.stage||'접수', i = STAGES.indexOf(st), el = elapsed(t), h = handlerLabel(t), tel = telOf(t.phone), dl = delayOf(t);
+  const bar = !isOpen(t) || st===HOLD ? 'var(--line-2)' : 'var(--brand)';
+  const who = h ? esc(h) : (isOpen(t) && st!==HOLD ? '<span class="need">담당 지정 필요</span>' : '');
+  return `<div class="mcard" role="button" tabindex="0" data-open="${esc(t._id)}" style="--bar:${bar}">
+    <div class="t"><b>${esc(t.customer||'(고객명 미입력)')}${+t.round>1?` <span class="pill src-cust">${esc(t.round)}차</span>`:''}${t.source==='고객 접수'?' <span class="pill src-cust">고객 신청</span>':''}</b>${tel?`<a class="mcall" href="tel:${esc(tel)}" aria-label="${esc(t.customer||'고객')}에게 전화">${PHONE_SVG}</a>`:''}</div>
+    <div class="a">${esc([joinV(t.process), t.address].filter(Boolean).join(' · '))}</div>
+    <div class="mtrack" title="진행 단계">${STAGES.map((x,k)=>`<i class="${k<=i?'on':''}"></i>`).join('')}</div>
+    <div class="m"><span><b>${esc(st)}</b>${dl?` · <span class="over">${esc(dl)}</span>`:(el===''?'':el===0?' · 오늘 접수':` · ${el}일째`)}</span><span>${who}</span></div>
+  </div>`;
+}
 function renderList(){
   const all = S.tickets, open = all.filter(t=>isOpen(t) && t.stage!==HOLD);
   const card = (g,label) => {
@@ -377,28 +422,36 @@ function renderList(){
         <td>${stagePill(t)}</td>
         <td data-c="hide"><div class="flags">${flagsHTML(t)}</div></td>
         <td class="num ${delayOf(t)?'over':''}">${el===''?'':el+'일'}</td>
-      </tr>`;}).join('')+`</tbody></table></div>`;
+      </tr>`;}).join('')+`</tbody></table></div>`
+    + `<div class="mcards">`+rows.map(mcardHTML).join('')+`</div>`;
   const ownerChip = S.f.owner ? `<button class="btn" data-act="clear-owner">담당자: ${esc(S.f.owner.split('|')[1]||'')} ✕</button>` : '';
   app.innerHTML = `
-    <h1 class="page">AS 현황판</h1>
+    ${mheadHTML()}
+    <h1 class="page hide-m">AS 현황판</h1>
     <p class="sub">접수된 AS는 현장 담당자의 재직 상태로 자동 구분됩니다. 카드를 누르면 그 구분만 보입니다.${S.offline?' · 저장소에 연결되지 않아 저장되지 않습니다.':''}</p>
-    <div class="groups">${card('전체','전체')}${GROUPS.map(([g,l])=>card(g,l)).join('')}</div>
+    <div class="mtiles">
+      <button type="button" class="mtile" data-act="m-open" aria-pressed="${S.f.stage==='진행 중'&&!S.f.mine&&!S.f.alert}"><strong>${open.length}</strong><span>진행 중</span></button>
+      <button type="button" class="mtile" data-act="mine" aria-pressed="${S.f.mine}"><strong>${all.filter(t=>isOpen(t)&&isMine(t)).length}</strong><span>내 담당</span></button>
+      <button type="button" class="mtile ${unC?'hot':''}" data-alert="delayed" aria-pressed="${S.f.alert==='delayed'}"><strong>${unC}</strong><span>지연</span></button>
+    </div>
+    <div class="only-m" style="margin-bottom:10px">${segHTML('group',[['전체','전체 '+all.length],...GROUPS.map(([g,l])=>[g,l.replace(' 현장','')+' '+all.filter(t=>groupOf(t)===g).length])],S.f.group)}</div>
+    <div class="groups hide-m">${card('전체','전체')}${GROUPS.map(([g,l])=>card(g,l)).join('')}</div>
     ${usageWarnHTML()}
     ${unk?`<p class="guide" style="margin-top:-8px">현장 담당자가 비어 있거나 명단에서 확인되지 않는 AS가 ${unk}건 있습니다. <button class="linkish" data-group="미확인">보기</button></p>`:''}
     ${(unC||noH||depN)?`<div class="alerts">
       ${noH?`<button class="alert" data-alert="nohandler" aria-pressed="${S.f.alert==='nohandler'}">처리 담당 지정 필요 ${noH}건</button>`:''}
-      ${unC?`<button class="alert" data-alert="delayed" aria-pressed="${S.f.alert==='delayed'}">지연 ${unC}건 (미연락·${DELAY_DAYS}일 경과)</button><button class="btn primary" data-act="remind">지연 알림 카톡 보내기</button>`:''}
+      ${unC?`<button class="alert hide-m" data-alert="delayed" aria-pressed="${S.f.alert==='delayed'}">지연 ${unC}건 (미연락·${DELAY_DAYS}일 경과)</button><button class="btn primary" data-act="remind">지연 알림 카톡 보내기</button>`:''}
       ${depN?`<button class="alert" data-alert="deposit" aria-pressed="${S.f.alert==='deposit'}">예치금 차감 대상 ${depN}건</button>`:''}
     </div>`:''}
     <div class="filters">
       <span><span class="flabel">단계</span>${segHTML('stage',[['진행 중',`진행 중 ${open.length}`],...OPT.stage.map(s=>[s,`${s} ${cnt(s)}`]),['전체','전체']],S.f.stage)}</span>
-      <button type="button" class="btn ${S.f.mine?'primary':''}" data-act="mine" aria-pressed="${S.f.mine}">내가 처리할 AS ${all.filter(t=>isOpen(t)&&isMine(t)).length}건</button>
+      <button type="button" class="btn hide-m ${S.f.mine?'primary':''}" data-act="mine" aria-pressed="${S.f.mine}">내가 처리할 AS ${all.filter(t=>isOpen(t)&&isMine(t)).length}건</button>
       ${ownerChip}
       <input class="search" id="f-q" type="search" placeholder="고객명, 주소, 연락처, 담당자 검색" value="${esc(S.f.q)}">
-      ${all.length?'<button class="btn ghost" data-act="csv">CSV 내보내기</button>':''}
+      ${all.length?'<button class="btn ghost hide-m" data-act="csv">CSV 내보내기</button>':''}
     </div>
     ${body}
-    ${usagePanelHTML()}`;
+    <div class="hide-m">${usagePanelHTML()}</div>`;
   app.querySelectorAll('[data-seg]').forEach(b=>b.addEventListener('click',()=>{ S.f[b.dataset.seg]=b.dataset.v; renderList(); }));
   app.querySelectorAll('[data-group]').forEach(b=>b.addEventListener('click',()=>{ const g=b.dataset.group; S.f.group = (S.f.group===g && g!=='전체') ? '전체' : g; renderList(); }));
   app.querySelectorAll('[data-alert]').forEach(b=>b.addEventListener('click',()=>{ const a=b.dataset.alert; S.f.alert = S.f.alert===a ? '' : a; if(S.f.alert) S.f.stage='전체'; renderList(); }));
@@ -410,7 +463,9 @@ function renderList(){
   });
   app.querySelector('[data-act="new"]')?.addEventListener('click',()=>go('edit'));
   app.querySelector('[data-act="reset"]')?.addEventListener('click',()=>{ S.f={group:'전체',stage:'전체',q:'',mine:false,alert:'',owner:''}; renderList(); });
-  app.querySelector('[data-act="mine"]')?.addEventListener('click',()=>{ S.f.mine=!S.f.mine; renderList(); });
+  app.querySelectorAll('[data-act="mine"]').forEach(b=>b.addEventListener('click',()=>{ S.f.mine=!S.f.mine; renderList(); }));
+  app.querySelector('[data-act="m-open"]')?.addEventListener('click',()=>{ S.f.stage='진행 중'; S.f.mine=false; S.f.alert=''; renderList(); });
+  app.querySelectorAll('.mcall').forEach(a=>a.addEventListener('click',e=>e.stopPropagation()));
   app.querySelector('[data-act="remind"]')?.addEventListener('click',()=>sendKakao(delayMsg(delayed)));
   app.querySelector('[data-act="clear-owner"]')?.addEventListener('click',()=>{ S.f.owner=''; renderList(); });
   app.querySelector('[data-act="csv"]')?.addEventListener('click',()=>exportCSV(rows));
@@ -552,6 +607,10 @@ function renderDoc(){
     </div>`;
   loadPhotoUrls(photos, media.map(m=>m.path));
   app.querySelector('[data-act="back"]').onclick=()=>go('list');
+  // 휴대폰: 아래 메뉴 위에 붙는 바로 하기 줄 (전화 걸기 · 수정)
+  { const tel = telOf(t.phone);
+    if(tel || canW) app.insertAdjacentHTML('beforeend', `<div class="mact">${tel?`<a class="btn" href="tel:${esc(tel)}">${PHONE_SVG}전화 걸기</a>`:''}${canW?'<button type="button" class="btn primary" data-act="m-edit">수정</button>':''}</div>`);
+    app.querySelector('[data-act="m-edit"]')?.addEventListener('click',()=>go('edit',t._id)); }
   app.querySelector('[data-act="edit"]')?.addEventListener('click',()=>go('edit',t._id));
   app.querySelectorAll('[data-act="notify"]').forEach(b=>b.addEventListener('click',async()=>{
     if(!await sendKakao(notifyMsg(t))) return;
@@ -919,6 +978,21 @@ function renderPeople(){
 }
 
 /* ---------- 처리 기준 ---------- */
+/* ---------- 내 정보 (휴대폰 아래 메뉴) — 알림 켜기·로그아웃은 위 머리줄의 버튼을 대신 누른다 ---------- */
+function renderMe(){
+  const push = document.getElementById('btn-push');
+  const m = S.members.find(x=>x.email===S.email);
+  app.innerHTML = `
+    <h1 class="page">내 정보</h1>
+    <div class="me-card"><b>${esc(S.me.name||S.email||'')}</b><span>${esc([m?.dept, m?.title, S.me.isAdmin?'관리자':''].filter(Boolean).join(' · ')||'직원')}</span><span>${esc(S.email||'')}</span></div>
+    ${push && !push.hidden ? `<button type="button" class="btn mbig ${push.getAttribute('aria-pressed')==='true'?'':'primary'}" data-act="push">${esc(push.textContent)}</button>` : ''}
+    <button type="button" class="btn mbig" data-act="logout">로그아웃</button>
+    <p class="me-note">새 AS가 접수되면 휴대폰으로 알림이 옵니다. 내가 접수한 건은 오지 않습니다.<br>아이폰은 홈 화면에 추가한 아이콘으로 열어야 알림을 받을 수 있습니다.<br>CSV 내보내기·저장 공간 같은 전체 기능은 컴퓨터에서 열면 보입니다.</p>`;
+  app.querySelector('[data-act="push"]')?.addEventListener('click',()=>push.click());
+  app.querySelector('[data-act="logout"]').addEventListener('click',()=>document.getElementById('btn-logout').click());
+}
+new MutationObserver(()=>{ if(S.view==='me' && S.session) renderMe(); }).observe(document.getElementById('btn-push'), {childList:true, attributes:true});
+
 function renderGuide(){
   app.innerHTML = `
     <h1 class="page">AS 처리 기준</h1>

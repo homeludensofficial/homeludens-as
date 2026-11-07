@@ -374,6 +374,7 @@ button.step:disabled{cursor:default;color:inherit}
 .demo-bar{background:var(--accent-soft);color:var(--ink);text-align:center;font-size:12px;padding:4px 16px;font-weight:600}
 .who #btn-push[aria-pressed="true"]{color:var(--accent);font-weight:600}
 </style>
+<link rel="stylesheet" href="mobile.css?v=1">
 </head>
 <body>
 <header class="bar">
@@ -391,6 +392,13 @@ button.step:disabled{cursor:default;color:inherit}
 
 <main class="wrap" id="app"></main>
 <div class="toast" id="toast" hidden></div>
+<nav class="mtab" id="mtab" aria-label="휴대폰 메뉴" hidden>
+  <button type="button" data-mv="list"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>현황판<em id="mt-badge"></em></button>
+  <button type="button" data-mv="people"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.5-5.5 6.5-5.5s5.5 2 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M17.5 14.6c2 .8 3.3 2.6 4 5.4"/></svg>담당자별</button>
+  <button type="button" data-mv="edit" class="plus" id="mt-new"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>AS 접수</button>
+  <button type="button" data-mv="guide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg>처리 기준</button>
+  <button type="button" data-mv="me"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.4-4 4.4-6 8-6s6.6 2 8 6"/></svg>내 정보</button>
+</nav>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
