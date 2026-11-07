@@ -409,7 +409,7 @@ function renderList(){
   else if(S.offline && !all.length) body = `<div class="empty"><h3>AS 데이터베이스에 연결하지 못했습니다</h3><p>처음 쓰는 거라면 관리자가 Supabase에 <b>as.sql</b>을 한 번 실행해야 합니다. 이미 했다면 새로고침해 보세요.</p></div>`;
   else if(!all.length) body = `<div class="empty"><h3>아직 접수된 AS가 없습니다</h3><p>AS가 들어오면 현장 정보를 넣고 마감보고서를 첨부해 접수하세요. 담당자가 이 화면에서 진행합니다.</p><button class="btn primary" data-act="new">첫 AS 접수</button></div>`;
   else if(!rows.length) body = `<div class="empty"><h3>조건에 맞는 AS가 없습니다</h3><p>구분·단계 필터를 바꾸거나 검색어를 지워 보세요.</p><button class="btn" data-act="reset">필터 초기화</button></div>`;
-  else body = `<div class="tbl-wrap"><table class="ledger"><thead><tr>
+  else body = `<div class="tbl-wrap hide-m"><table class="ledger"><thead><tr>
       <th>접수번호</th><th>고객 / 현장</th><th>현장 담당 (구분)</th><th>처리 담당</th><th>공정</th><th>단계</th><th>확인할 것</th><th class="num">경과</th>
     </tr></thead><tbody>`+rows.map(t=>{
       const o = ownerOf(t), g = groupOf(t), h = handlerLabel(t), el = elapsed(t);
@@ -426,15 +426,15 @@ function renderList(){
     + `<div class="mcards">`+rows.map(mcardHTML).join('')+`</div>`;
   const ownerChip = S.f.owner ? `<button class="btn" data-act="clear-owner">담당자: ${esc(S.f.owner.split('|')[1]||'')} ✕</button>` : '';
   app.innerHTML = `
-    ${mheadHTML()}
-    <h1 class="page hide-m">AS 현황판</h1>
+    ${S.f.owner?'':mheadHTML()}
+    <h1 class="page ${S.f.owner?'':'hide-m'}">${S.f.owner?`<span class="only-m">${esc(S.f.owner.split('|')[1]||'')}님 현장 AS</span><span class="hide-m">AS 현황판</span>`:'AS 현황판'}</h1>
     <p class="sub">접수된 AS는 현장 담당자의 재직 상태로 자동 구분됩니다. 카드를 누르면 그 구분만 보입니다.${S.offline?' · 저장소에 연결되지 않아 저장되지 않습니다.':''}</p>
-    <div class="mtiles">
+    <div class="mtiles" ${S.f.owner?'hidden':''}>
       <button type="button" class="mtile" data-act="m-open" aria-pressed="${S.f.stage==='진행 중'&&!S.f.mine&&!S.f.alert}"><strong>${open.length}</strong><span>진행 중</span></button>
       <button type="button" class="mtile" data-act="mine" aria-pressed="${S.f.mine}"><strong>${all.filter(t=>isOpen(t)&&isMine(t)).length}</strong><span>내 담당</span></button>
       <button type="button" class="mtile ${unC?'hot':''}" data-alert="delayed" aria-pressed="${S.f.alert==='delayed'}"><strong>${unC}</strong><span>지연</span></button>
     </div>
-    <div class="only-m" style="margin-bottom:10px">${segHTML('group',[['전체','전체 '+all.length],...GROUPS.map(([g,l])=>[g,l.replace(' 현장','')+' '+all.filter(t=>groupOf(t)===g).length])],S.f.group)}</div>
+    <div class="only-m" style="margin-bottom:10px" ${S.f.owner?'hidden':''}>${segHTML('group',[['전체','전체 '+all.length],...GROUPS.map(([g,l])=>[g,l.replace(' 현장','')+' '+all.filter(t=>groupOf(t)===g).length])],S.f.group)}</div>
     <div class="groups hide-m">${card('전체','전체')}${GROUPS.map(([g,l])=>card(g,l)).join('')}</div>
     ${usageWarnHTML()}
     ${unk?`<p class="guide" style="margin-top:-8px">현장 담당자가 비어 있거나 명단에서 확인되지 않는 AS가 ${unk}건 있습니다. <button class="linkish" data-group="미확인">보기</button></p>`:''}
@@ -955,12 +955,13 @@ function renderPeople(){
   const tot = g => rows.filter(r=>r.g===g).reduce((a,r)=>a+r.list.length,0);
   app.innerHTML = `
     <h1 class="page">담당자별 AS</h1>
+    <p class="guide only-m" style="margin:-6px 0 14px">누르면 그 사람의 AS만 현황판에 보입니다.</p>
     <p class="sub">현장 담당자(마감보고서 담당) 기준으로 묶었습니다. 퇴사자는 퇴사 후 1년 안에 생긴 AS 비용을 예치금 정산에 씁니다. 행을 누르면 그 사람의 AS만 현황판에 보입니다.</p>
     <div class="kpis">
       ${GROUPS.map(([g,l])=>`<div class="kpi"><small>${esc(l)}</small><strong>${tot(g)}<em>건</em></strong></div>`).join('')}
       <div class="kpi"><small>예치금 차감 대상 비용</small><strong>${won(rows.reduce((a,r)=>a+r.depCost,0))}<em>원</em></strong></div>
     </div>
-    ${rows.length?`<div class="tbl-wrap"><table class="ledger"><thead><tr><th>현장 담당자</th><th>상태</th><th class="num">전체</th><th class="num">진행 중</th><th class="num">비용 합계(원)</th><th>퇴사일</th><th class="num">예치금 차감(원)</th></tr></thead><tbody>
+    ${rows.length?`<div class="tbl-wrap hide-m"><table class="ledger"><thead><tr><th>현장 담당자</th><th>상태</th><th class="num">전체</th><th class="num">진행 중</th><th class="num">비용 합계(원)</th><th>퇴사일</th><th class="num">예치금 차감(원)</th></tr></thead><tbody>
       ${rows.map(r=>`<tr data-owner="${esc(r.key)}" tabindex="0">
         <td class="cust"><b>${esc(r.o.name||'담당자 미입력')}</b><span>${esc(r.o.dept||'')}</span></td>
         <td class="g-${esc(r.g)}"><span class="gtag">${esc(r.g==='미확인'?'미확인':r.g)}</span></td>
@@ -970,7 +971,12 @@ function renderPeople(){
         <td data-c="hide">${esc(r.resigned)}</td>
         <td class="num" data-c="hide">${r.depN?`<b>${won(r.depCost)||'0'}</b> <span class="guide">(${r.depN}건)</span>`:''}</td>
       </tr>`).join('')}
-    </tbody></table></div>`:`<div class="empty"><h3>아직 AS가 없습니다</h3></div>`}`;
+    </tbody></table></div>
+    <div class="mcards">${rows.map(r=>`<div class="mcard" role="button" tabindex="0" data-owner="${esc(r.key)}" style="--bar:${r.open?'var(--brand)':'var(--line-2)'}">
+      <div class="t"><b>${esc(r.o.name||'담당자 미입력')}</b><span class="gtag">${esc(r.g==='미확인'?'미확인':groupLabel(r.g).replace(' 현장',''))}</span></div>
+      <div class="a">${esc([r.o.dept, r.resigned?'퇴사 '+r.resigned:''].filter(Boolean).join(' · ')||' ')}</div>
+      <div class="m" style="margin-top:8px"><span>진행 중 <b>${r.open}</b> · 전체 ${r.list.length}건</span><span>${r.depN?`예치금 차감 <b>${won(r.depCost)||'0'}원</b>`:''}</span></div>
+    </div>`).join('')}</div>`:`<div class="empty"><h3>아직 AS가 없습니다</h3></div>`}`;
   app.querySelectorAll('[data-owner]').forEach(tr=>{
     const open = ()=>{ S.f = {group:'전체', stage:'전체', q:'', mine:false, alert:'', owner:tr.dataset.owner.startsWith('|')?'':tr.dataset.owner}; go('list'); };
     tr.addEventListener('click',open); tr.addEventListener('keydown',e=>{ if(e.key==='Enter') open(); });

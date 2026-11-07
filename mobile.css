@@ -2,7 +2,7 @@
 /* ---------- 휴대폰 화면 (720px 이하) ----------
    PC 화면은 그대로 두고, 휴대폰에서만 위 메뉴 대신 아래 메뉴 줄 · 큰 숫자 카드 · 카드 목록으로 보여 준다.
    두 앱(클레임·AS)이 같은 파일을 쓴다. 배포 스크립트가 각 앱으로 복사한다. 색은 각 앱의 --brand 를 따른다. */
-.mtab,.mtiles,.mcards,.only-m,.mact{display:none}
+.mtab,.mtiles,.mcards,.only-m,.mact,.mstd{display:none}
 /* 전화번호 링크: 브라우저 기본 파란 밑줄 대신 앱 색 (PC·휴대폰 공통) */
 a[href^="tel:"]{color:var(--brand);text-decoration:none;font-weight:600}
 @media (max-width:720px){
@@ -68,7 +68,6 @@ a[href^="tel:"]{color:var(--brand);text-decoration:none;font-weight:600}
   .mfocus .more{margin:0;padding:10px 16px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)}
 
   /* 목록: 표 대신 카드. 왼쪽 띠 = 단계 색, 가운데 막대 = 어디까지 왔는지, 오른쪽 위 = 바로 전화 */
-  .tbl-wrap{display:none}
   .mcards{display:flex;flex-direction:column;gap:10px}
   .mcard{position:relative;display:block;width:100%;text-align:left;border:1px solid var(--line);border-left:4px solid var(--bar,var(--line-2));background:var(--sheet);border-radius:12px;padding:14px 14px 13px 15px;color:var(--ink);cursor:pointer}
   .mcard:active{background:var(--tint)}
@@ -99,6 +98,13 @@ a[href^="tel:"]{color:var(--brand);text-decoration:none;font-weight:600}
   /* 상세·작성 화면: 버튼을 손가락 크기로 */
   .back{margin-top:14px}
   .btn{padding:9px 14px}
+
+  /* 처리 기준: 표 대신 단계별 줄 */
+  .mstd{display:flex;flex-direction:column;margin-top:10px;border-top:1px solid var(--line)}
+  .mstd-row{padding:14px 0;border-bottom:1px solid var(--line)}
+  .mstd-row p{margin:8px 0 4px;font-size:15px;color:var(--ink)}
+  .mstd-row span{font-size:13px;color:var(--ink-3)}
+  .mstd-row span b{color:var(--ink-2);font-weight:600}
 
   /* 내 정보 */
   .me-card{background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:12px}
