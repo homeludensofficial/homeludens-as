@@ -3,6 +3,8 @@
    PC 화면은 그대로 두고, 휴대폰에서만 위 메뉴 대신 아래 메뉴 줄 · 큰 숫자 카드 · 카드 목록으로 보여 준다.
    두 앱(클레임·AS)이 같은 파일을 쓴다. 배포 스크립트가 각 앱으로 복사한다. 색은 각 앱의 --brand 를 따른다. */
 .mtab,.mtiles,.mcards,.only-m,.mact{display:none}
+/* 전화번호 링크: 브라우저 기본 파란 밑줄 대신 앱 색 (PC·휴대폰 공통) */
+a[href^="tel:"]{color:var(--brand);text-decoration:none;font-weight:600}
 @media (max-width:720px){
   body{font-size:15px}
   .bar-in{padding-block:12px;gap:10px}
@@ -90,7 +92,7 @@
   .mact{display:flex;gap:8px;position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom,0px));z-index:19;
     padding:10px 16px;background:var(--paper);border-top:1px solid var(--line)}
   .mact .btn{flex:1;justify-content:center;padding:12px;font-size:15px;border-radius:10px}
-  .mact a.btn{color:var(--ink);text-decoration:none}
+  .mact a.btn{color:var(--brand);border-color:var(--brand);font-weight:700;text-decoration:none}
   .mact svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
   .wrap:has(.mact){padding-bottom:calc(150px + env(safe-area-inset-bottom,0px))}
 
